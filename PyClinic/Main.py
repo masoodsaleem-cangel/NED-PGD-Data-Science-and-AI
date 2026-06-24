@@ -96,7 +96,7 @@ def add_patient(patients):
     }
     
     patients.append(patient)
-    print(f"\n✅ Patient {name} (ID: {patient_id}) added successfully!")
+    print(f"\n Patient {name} (ID: {patient_id}) added successfully!")
     return patients
 
 # ==================== 2. VIEW ALL PATIENTS ====================
@@ -120,7 +120,63 @@ def view_patients(patients):
     print(f"Total Patients: {len(patients)}")
 
 
-
+# ==================== 3. SEARCH PATIENT (with individual chart) ====================
+def search_patient(patients, vitals):
+    """Search patient by ID or Name and show individual report"""
+    print("\n" + "="*50)
+    print("SEARCH PATIENT")
+    print("="*50)
+    
+    if not patients:
+        print("No patients found.")
+        return
+    
+    search_term = input("Enter Patient ID or Name: ").strip().lower()
+    
+    found_patients = []
+    for p in patients:
+        if search_term in p['id'].lower() or search_term in p['name'].lower():
+            found_patients.append(p)
+    
+    if not found_patients:
+        print(" No matching patients found.")
+        return
+    
+    print(f"\n Found {len(found_patients)} patient(s):")
+    
+    for patient in found_patients:
+        print("\n" + "="*50)
+        print(f"PATIENT DETAILS: {patient['name']}")
+        print("="*50)
+        print(f"ID: {patient['id']}")
+        print(f"Blood Type: {patient['blood_type']}")
+        print(f"Phone: {patient['phone']}")
+        print(f"Registered: {patient['created_date']}")
+        
+        # Get vitals history for this patient
+        patient_vitals = [v for v in vitals if v['patient_id'] == patient['id']]
+        
+        if patient_vitals:
+            print(f"\n VITALS HISTORY ({len(patient_vitals)} visits):")
+            print("-"*50)
+            for v in patient_vitals[-5:]:  # Show last 5 visits
+                print(f"  Date: {v['recorded_date']}")
+                print(f"    BP: {v['bp']}  |  Sugar: {v['sugar']} mg/dL  |  Temp: {v['temperature']}°C")
+                if v.get('weight') and v.get('weight'):
+                    print(f"    Weight: {v['weight']} kg  |  Height: {v.get('height', 'N/A')} cm  |  BMI: {v.get('bmi', 'N/A')}")
+            print("-"*50)
+            
+            # Calculate averages
+            avg_sugar = sum(v['sugar'] for v in patient_vitals) / len(patient_vitals)
+            avg_temp = sum(v['temperature'] for v in patient_vitals) / len(patient_vitals)
+            print(f"\n Averages: Sugar: {avg_sugar:.1f} mg/dL  |  Temp: {avg_temp:.1f}°C")
+            
+            # Ask for individual graph
+            show_graph = input("\nShow individual patient graph? (y/n): ").lower()
+            if show_graph == 'y':
+                show_individual_chart(patient, patient_vitals)
+        else:
+            print("\n No vitals recorded yet for this patient.")
 
 
 
