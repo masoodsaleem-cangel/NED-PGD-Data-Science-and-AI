@@ -54,6 +54,84 @@ def save_data(patients, vitals):
 # so the next problem is, getting dictionary turn into table back again 
 # when user select saving as an option... 
 
+# ==================== 1. ADD PATIENT (Auto ID) ====================
+def add_patient(patients):
+    """Add a new patient with auto-generated ID (P00001-2026 format)"""
+    print("\n" + "="*50)
+    print("ADD NEW PATIENT")
+    print("="*50)
+    
+    # Auto-generate ID
+    current_year = datetime.now().strftime("%Y")
+    
+    if patients:
+        existing_nums = []
+        for p in patients:
+            if '-' in p['id']:
+                num_part = p['id'].split('-')[0][1:]
+                try:
+                    existing_nums.append(int(num_part))
+                except:
+                    pass
+        if existing_nums:
+            next_num = max(existing_nums) + 1
+        else:
+            next_num = 1
+    else:
+        next_num = 1
+    
+    patient_id = f"P{next_num:05d}-{current_year}"
+    print(f"Auto-generated Patient ID: {patient_id}")
+    
+    name = input("Enter Patient Name: ")
+    blood_type = input("Enter Blood Type (A+/A-/B+/B-/O+/O-/AB+/AB-): ")
+    phone = input("Enter Phone Number: ")
+    
+    patient = {
+        'id': patient_id,
+        'name': name,
+        'blood_type': blood_type,
+        'phone': phone,
+        'created_date': datetime.now().strftime("%Y-%m-%d")
+    }
+    
+    patients.append(patient)
+    print(f"\n✅ Patient {name} (ID: {patient_id}) added successfully!")
+    return patients
+
+# ==================== 2. VIEW ALL PATIENTS ====================
+def view_patients(patients):
+    """Display all patients in a formatted table"""
+    print("\n" + "="*60)
+    print("ALL PATIENTS")
+    print("="*60)
+    
+    if not patients:
+        print("No patients found. Please add patients first.")
+        return
+    
+    print(f"{'ID':<15} {'Name':<20} {'Blood Type':<12} {'Phone':<15}")
+    print("-"*62)
+    
+    for p in patients:
+        print(f"{p['id']:<15} {p['name']:<20} {p['blood_type']:<12} {p['phone']:<15}")
+    
+    print("-"*62)
+    print(f"Total Patients: {len(patients)}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # ==================== MAIN MENU ====================
 def main():
     """Main program loop"""
