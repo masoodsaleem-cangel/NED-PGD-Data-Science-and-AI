@@ -1,0 +1,181 @@
+```txt
++====================================================================+
+|              OCCUPANCY DETECTION SYSTEM FLOWCHART                    |
+|         WiFi & Bluetooth Based People Traffic Monitoring             |
++====================================================================+
+
+START
+  |
+  v
++-------------------+
+|  INITIALIZATION   |
+|  - Import modules |
+|  - Setup classes  |
+|  - Create session |
+|    folder         |
++-------------------+
+  |
+  v
++-------------------+
+|  START MONITOR    |
+|  - Display header |
+|  - Wait for       |
+|    Ctrl+C         |
++-------------------+
+  |
+  v
++=====================================================+
+|                    MAIN LOOP                         |
+|               (Every 5 Seconds)                     |
++=====================================================+
+  |
+  v
++-------------------+      +-------------------------+
+|  1. SCAN SENSORS  |----->|  - Detect People Count   |
+|                   |      |  - Scan WiFi Devices     |
+|                   |      |  - Scan Bluetooth Devices|
+|                   |      |  - Measure WiFi Signal   |
++-------------------+      +-------------------------+
+  |
+  v
++-------------------+      +-------------------------+
+|  2. ANALYZE DATA  |----->|  - Calculate Movement    |
+|                   |      |  - Classify Occupancy    |
+|                   |      |    Level                 |
+|                   |      |  - Generate Device Names |
++-------------------+      +-------------------------+
+  |
+  v
++-------------------+      +-------------------------+
+|  3. DISPLAY       |----->|  - Show People Count     |
+|     REAL-TIME     |      |  - Show Devices Count    |
+|                   |      |  - Show Traffic Meter    |
+|                   |      |  - Show Status           |
++-------------------+      +-------------------------+
+  |
+  v
++-------------------+      +-------------------------+
+|  4. SAVE DATA     |----->|  - Append to Dataset     |
+|                   |      |  - Auto-save every 10    |
+|                   |      |    samples to CSV        |
++-------------------+      +-------------------------+
+  |
+  v
++-------------------+
+|  CHECK: Ctrl+C    |
+|  Pressed?         |
++-------------------+
+  |                |
+  No               Yes
+  |                |
+  v                v
++-------+    +=====================+
+| Loop  |    |  SESSION COMPLETE   |
+| Back  |    +=====================+
++-------+    |
+             v
++-----------------------------------------+
+|  5. GENERATE FINAL OUTPUT                |
+|  - Calculate Statistics                  |
+|  - Save Final CSV                        |
+|  - Create 3 Plots:                      |
+|    a) People Count Over Time             |
+|    b) WiFi Signal Fluctuations           |
+|    c) Bluetooth Devices Detected         |
++-----------------------------------------+
+             |
+             v
++-----------------------------------------+
+|  6. SAVE FILES                          |
+|  - traffic_data_YYYYMMDD_HHMMSS.csv     |
+|  - occupancy_plots_YYYYMMDD_HHMMSS.png  |
+|  - Store in session_YYYYMMDD_HHMMSS/    |
+|    folder                               |
++-----------------------------------------+
+             |
+             v
++-----------------------------------------+
+|  7. DISPLAY SUMMARY                     |
+|  - Session Duration                     |
+|  - Total Samples                        |
+|  - Statistics                           |
+|  - File Locations                       |
++-----------------------------------------+
+             |
+             v
+           END
+
++====================================================================+
+|                      DATA FLOW DIAGRAM                              |
++====================================================================+
+
+    +------------+     +------------+     +------------+
+    |   WiFi     |     | Bluetooth  |     |   Time     |
+    |  Sensors   |     |  Sensors   |     |  Stamp     |
+    +------------+     +------------+     +------------+
+          |                  |                   |
+          +--------+---------+-------------------+
+                   |
+                   v
+          +-------------------+
+          |  Data Collection  |
+          |     (Main Loop)   |
+          +-------------------+
+                   |
+                   v
+          +-------------------+
+          |  Data Processing  |
+          |  - Movement %     |
+          |  - Occupancy Level|
+          |  - Signal Strength|
+          +-------------------+
+                   |
+                   v
+    +--------------+---------------+
+    |                              |
+    v                              v
++-----------+              +---------------+
+|  CSV      |              |  PLOTS        |
+|  Dataset  |              |  - 3 Graphs   |
++-----------+              +---------------+
+    |                              |
+    v                              v
++=========+              +===============+
+| OUTPUT  |              |  SESSION      |
+| FILES   |              |  FOLDER       |
++=========+              +===============+
+
++====================================================================+
+|                    LEGEND / SYMBOLS                                 |
++====================================================================+
+  START/END    :  +=========+  or  +-----------+
+  Process      :  +-----------+  (rounded box)
+  Decision     :  < or > or diamond shape
+  Data Flow    :  ---->
+  Input/Output :  +=========+  (double line)
+
++====================================================================+
+|                  SYSTEM COMPONENTS                                  |
++====================================================================+
+
+    [USER]              [SYSTEM]              [OUTPUT]
+       |                    |                     |
+       |   Start Monitor    |                     |
+       +------------------>|                     |
+       |                    |  Scan Sensors       |
+       |                    +------------------->|
+       |                    |  Process Data      |
+       |                    +------------------->|
+       |  View Display      |                     |
+       |<-------------------+                     |
+       |                    |  Auto-Save CSV      |
+       |                    +------------------->|
+       |  Press Ctrl+C      |                     |
+       +------------------>|                     |
+       |                    |  Generate Plots     |
+       |                    +------------------->|
+       |  Get Results       |                     |
+       |<-------------------+                     |
+       |                    |                     |
+
++====================================================================+
