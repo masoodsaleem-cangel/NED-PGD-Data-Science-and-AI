@@ -1,2 +1,13 @@
+# Core dependencies for WiFi scanning
+pywifi>=1.1.12
+comtypes>=1.1.14
+
+# Bluetooth scanning
+bleak>=0.20.0
+
+# Data visualization
 matplotlib>=3.5.0
 numpy>=1.21.0
+
+# Optional but recommended
+pandas>=1.3.0

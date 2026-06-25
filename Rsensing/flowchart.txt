@@ -1,109 +1,157 @@
-```txt
 +====================================================================+
 |              OCCUPANCY DETECTION SYSTEM FLOWCHART                    |
 |         WiFi & Bluetooth Based People Traffic Monitoring             |
 +====================================================================+
 
-START
-  |
-  v
-+-------------------+
-|  INITIALIZATION   |
-|  - Import modules |
-|  - Setup classes  |
-|  - Create session |
-|    folder         |
-+-------------------+
-  |
-  v
-+-------------------+
-|  START MONITOR    |
-|  - Display header |
-|  - Wait for       |
-|    Ctrl+C         |
-+-------------------+
-  |
-  v
-+=====================================================+
-|                    MAIN LOOP                         |
-|               (Every 5 Seconds)                     |
-+=====================================================+
-  |
-  v
-+-------------------+      +-------------------------+
-|  1. SCAN SENSORS  |----->|  - Detect People Count   |
-|                   |      |  - Scan WiFi Devices     |
-|                   |      |  - Scan Bluetooth Devices|
-|                   |      |  - Measure WiFi Signal   |
-+-------------------+      +-------------------------+
-  |
-  v
-+-------------------+      +-------------------------+
-|  2. ANALYZE DATA  |----->|  - Calculate Movement    |
-|                   |      |  - Classify Occupancy    |
-|                   |      |    Level                 |
-|                   |      |  - Generate Device Names |
-+-------------------+      +-------------------------+
-  |
-  v
-+-------------------+      +-------------------------+
-|  3. DISPLAY       |----->|  - Show People Count     |
-|     REAL-TIME     |      |  - Show Devices Count    |
-|                   |      |  - Show Traffic Meter    |
-|                   |      |  - Show Status           |
-+-------------------+      +-------------------------+
-  |
-  v
-+-------------------+      +-------------------------+
-|  4. SAVE DATA     |----->|  - Append to Dataset     |
-|                   |      |  - Auto-save every 10    |
-|                   |      |    samples to CSV        |
-+-------------------+      +-------------------------+
-  |
-  v
-+-------------------+
-|  CHECK: Ctrl+C    |
-|  Pressed?         |
-+-------------------+
-  |                |
-  No               Yes
-  |                |
-  v                v
-+-------+    +=====================+
-| Loop  |    |  SESSION COMPLETE   |
-| Back  |    +=====================+
-+-------+    |
-             v
-+-----------------------------------------+
-|  5. GENERATE FINAL OUTPUT                |
-|  - Calculate Statistics                  |
-|  - Save Final CSV                        |
-|  - Create 3 Plots:                      |
-|    a) People Count Over Time             |
-|    b) WiFi Signal Fluctuations           |
-|    c) Bluetooth Devices Detected         |
-+-----------------------------------------+
-             |
-             v
-+-----------------------------------------+
-|  6. SAVE FILES                          |
-|  - traffic_data_YYYYMMDD_HHMMSS.csv     |
-|  - occupancy_plots_YYYYMMDD_HHMMSS.png  |
-|  - Store in session_YYYYMMDD_HHMMSS/    |
-|    folder                               |
-+-----------------------------------------+
-             |
-             v
-+-----------------------------------------+
-|  7. DISPLAY SUMMARY                     |
-|  - Session Duration                     |
-|  - Total Samples                        |
-|  - Statistics                           |
-|  - File Locations                       |
-+-----------------------------------------+
-             |
-             v
-           END
+                              START
+                                |
+                                v
+                    +-----------------------+
+                    |    INITIALIZATION     |
+                    |  - Import modules     |
+                    |  - Setup classes      |
+                    |  - Check requirements |
+                    |  - Create session     |
+                    |    folder             |
+                    +-----------------------+
+                                |
+                                v
+                    +-----------------------+
+                    |   START MONITOR       |
+                    |  - Display header     |
+                    |  - Initialize scanner |
+                    |  - Wait for Ctrl+C    |
+                    +-----------------------+
+                                |
+                                v
+          +=================================================+
+          |                 MAIN LOOP                       |
+          |           (Every 10 Seconds)                   |
+          +=================================================+
+                                |
+                                v
+          +-------------------------------------------------+
+          |                                                  |
+          v                                                  v
++---------------------+                    +-----------------------+
+| 1. SCAN SENSORS     |                    |  WiFi Scan (3 sec)    |
+|                     |                    |  - pywifi interface   |
+|                     |                    |  - Scan for APs       |
+|                     |                    |  - Get BSSID & RSSI   |
+|                     |                    +-----------------------+
++---------------------+                               |
+          |                                          v
+          |                              +-----------------------+
+          |                              |  Bluetooth Scan       |
+          |                              |  (10 sec)             |
+          |                              |  - bleak scanner      |
+          |                              |  - Discover devices   |
+          |                              |  - Get MAC & Name     |
+          |                              +-----------------------+
+          |                                          |
+          +--------------------+---------------------+
+                               |
+                               v
+          +-----------------------------------------------+
+          |  2. ANALYZE DATA                              |
+          |  - Compare with previous scan                |
+          |  - Calculate WiFi RSSI changes               |
+          |  - Calculate BT device changes               |
+          |  - Compute movement score (%)                |
+          |  - Estimate people count                     |
+          |  - Average WiFi signal strength              |
+          +-----------------------------------------------+
+                               |
+                               v
+          +-----------------------------------------------+
+          |  3. CLASSIFY OCCUPANCY                       |
+          |  - HIGH_TRAFFIC: Movement > 40% & People > 5|
+          |  - MEDIUM_TRAFFIC: Movement > 25%            |
+          |  - OCCUPIED: People > 2                      |
+          |  - LOW_OCCUPANCY: People > 0                 |
+          |  - EMPTY: People = 0                         |
+          +-----------------------------------------------+
+                               |
+                               v
+          +-----------------------------------------------+
+          |  4. DISPLAY REAL-TIME OUTPUT                 |
+          |  - Time stamp                                 |
+          |  - People count (colored)                    |
+          |  - WiFi & BT device counts                   |
+          |  - Signal strength (colored)                 |
+          |  - Movement score                            |
+          |  - Status (colored)                          |
+          +-----------------------------------------------+
+                               |
+                               v
+          +-----------------------------------------------+
+          |  5. SAVE TO CSV                               |
+          |  - Append to single CSV file                 |
+          |  - Remove color fields                       |
+          |  - Write header only once                    |
+          |  - Convert BT names to string                |
+          +-----------------------------------------------+
+                               |
+                               v
+          +-----------------------------------------------+
+          |  CHECK: Ctrl+C Pressed?                       |
+          +-----------------------------------------------+
+                    |                           |
+                   No                          Yes
+                    |                           |
+                    v                           v
+          +-------------------+    +===========================+
+          |  Loop Back        |    |   SESSION COMPLETE         |
+          |  (Continue)       |    +===========================+
+          +-------------------+    |
+                                   v
+          +-----------------------------------------------+
+          |  6. GENERATE FINAL OUTPUT                     |
+          |  - Calculate statistics                       |
+          |  - Session duration                           |
+          |  - Total samples                              |
+          |  - Average/Peak people                        |
+          |  - Average/Peak movement                      |
+          |  - Save final CSV                             |
+          +-----------------------------------------------+
+                                   |
+                                   v
+          +-----------------------------------------------+
+          |  7. CREATE 3 PLOTS                            |
+          |  Plot 1: People Count Over Time              |
+          |    - Line chart with area fill               |
+          |    - Threshold lines (Low/Medium/High)       |
+          |                                              |
+          |  Plot 2: WiFi Signal & Changes               |
+          |    - Signal strength line chart              |
+          |    - WiFi changes bar chart (secondary axis) |
+          |    - Weak signal threshold line              |
+          |                                              |
+          |  Plot 3: Movement & BT Changes               |
+          |    - Movement line chart                     |
+          |    - BT changes bar chart (secondary axis)   |
+          |    - Threshold lines (High/Medium)           |
+          +-----------------------------------------------+
+                                   |
+                                   v
+          +-----------------------------------------------+
+          |  8. SAVE FILES                                |
+          |  - traffic_data_YYYYMMDD_HHMMSS.csv          |
+          |  - occupancy_plots_YYYYMMDD_HHMMSS.png       |
+          |  - Store in session_YYYYMMDD_HHMMSS/ folder  |
+          +-----------------------------------------------+
+                                   |
+                                   v
+          +-----------------------------------------------+
+          |  9. DISPLAY SESSION SUMMARY                   |
+          |  - Duration                                   |
+          |  - Total samples                              |
+          |  - Average/Peak statistics                    |
+          |  - File locations                             |
+          +-----------------------------------------------+
+                                   |
+                                   v
+                                 END
 
 +====================================================================+
 |                      DATA FLOW DIAGRAM                              |
@@ -111,7 +159,7 @@ START
 
     +------------+     +------------+     +------------+
     |   WiFi     |     | Bluetooth  |     |   Time     |
-    |  Sensors   |     |  Sensors   |     |  Stamp     |
+    |  Adapter   |     |  Adapter   |     |  Stamp     |
     +------------+     +------------+     +------------+
           |                  |                   |
           +--------+---------+-------------------+
@@ -128,6 +176,7 @@ START
           |  - Movement %     |
           |  - Occupancy Level|
           |  - Signal Strength|
+          |  - Device Changes |
           +-------------------+
                    |
                    v
@@ -146,33 +195,90 @@ START
 +=========+              +===============+
 
 +====================================================================+
-|                    LEGEND / SYMBOLS                                 |
+|                    TIMING DIAGRAM                                   |
 +====================================================================+
-  START/END    :  +=========+  or  +-----------+
-  Process      :  +-----------+  (rounded box)
-  Decision     :  < or > or diamond shape
-  Data Flow    :  ---->
-  Input/Output :  +=========+  (double line)
+
+Time (seconds):  0    3    6    9    12   15   18   21
+                 |    |    |    |    |    |    |    |
+WiFi Scan        [====]    [====]    [====]    [====]
+BT Scan          [==========]         [==========]
+Save CSV         |    |    |    |    |    |    |    |
+                 v    v    v    v    v    v    v    v
+Records:         R1   R2   R3   R4   R5   R6   R7   R8
+
+Legend:
+[====] = Active scan
+|      = Save record
+R1-R8  = CSV records
 
 +====================================================================+
-|                  SYSTEM COMPONENTS                                  |
+|                    COLOR CODING LEGEND                              |
++====================================================================+
+
+Signal Strength (dBm):
+  >= -50  : 🟢 Excellent (Green)
+  -50 to -60 : 🩵 Good (Cyan)
+  -60 to -70 : 🟡 Fair (Yellow)
+  < -70   : 🔴 Poor (Red)
+
+Occupancy Status:
+  HIGH_TRAFFIC   : 🔴 Red
+  MEDIUM_TRAFFIC : 🟡 Yellow
+  OCCUPIED       : 🩵 Cyan
+  LOW_OCCUPANCY  : 🟢 Green
+  EMPTY          : 🔵 Blue
+
++====================================================================+
+|                    ERROR HANDLING FLOW                              |
++====================================================================+
+
+     WiFi Scan Attempt
+           |
+           v
+    +------------+
+    | Try Scan   |
+    +------------+
+           |
+           v
+    +------------+     Fail (Retry)     +------------+
+    | Success?   |--------------------->| Attempt 2  |
+    +------------+                     +------------+
+           |                                  |
+          Yes                                 v
+           |                           +------------+
+           v                           | Attempt 3  |
+    +------------+                     +------------+
+    | Return     |                           |
+    | Devices    |                     Fail  |
+    +------------+                     (Silent)
+                                           |
+                                           v
+                                    +------------+
+                                    | Return     |
+                                    | Empty List |
+                                    +------------+
+
+Note: All Bluetooth failures are silent (no error messages)
+
++====================================================================+
+|                    SYSTEM COMPONENTS                                |
 +====================================================================+
 
     [USER]              [SYSTEM]              [OUTPUT]
        |                    |                     |
-       |   Start Monitor    |                     |
+       |  Start Monitor     |                     |
        +------------------>|                     |
-       |                    |  Scan Sensors       |
+       |                    |  Scan WiFi + BT    |
        |                    +------------------->|
        |                    |  Process Data      |
        |                    +------------------->|
        |  View Display      |                     |
        |<-------------------+                     |
-       |                    |  Auto-Save CSV      |
+       |                    |  Save to CSV       |
        |                    +------------------->|
        |  Press Ctrl+C      |                     |
        +------------------>|                     |
-       |                    |  Generate Plots     |
+       |                    |  Generate Plots    |
        |                    +------------------->|
        |  Get Results       |                     |
        |<-------------------+                     |

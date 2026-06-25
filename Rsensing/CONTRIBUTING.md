@@ -1,39 +1,48 @@
-# Contributing to Occupancy Detection System
+# 🤝 Contributing to Occupancy Detection System
 
 We love your input! We want to make contributing to this project as easy and transparent as possible.
 
-## Development Process
+---
 
-1. Fork the repo and create your branch from `main`.
-2. If you've added code that should be tested, add tests.
-3. Ensure the code works with the existing codebase.
-4. Issue that pull request!
+## 📋 Table of Contents
 
-## Any contributions you make will be under the MIT Software License
+- [Code of Conduct](#code-of-conduct)
+- [Getting Started](#getting-started)
+- [How to Contribute](#how-to-contribute)
+- [Development Workflow](#development-workflow)
+- [Coding Standards](#coding-standards)
+- [Testing](#testing)
+- [Documentation](#documentation)
+- [Pull Request Process](#pull-request-process)
+- [Issue Reporting](#issue-reporting)
+- [Feature Requests](#feature-requests)
+- [License](#license)
 
-When you submit code changes, your submissions are understood to be under the same [MIT License](LICENSE) that covers the project.
+---
 
-## Report bugs using Github's [issue tracker]
+## 📜 Code of Conduct
 
-We use GitHub issues to track public bugs. Report a bug by [opening a new issue](https://github.com/yourusername/occupancy-detection/issues/new).
+This project and everyone participating in it is governed by our Code of Conduct. By participating, you are expected to uphold this code.
 
-## Write bug reports with detail, background, and sample code
+### Our Pledge
 
-**Great Bug Reports** tend to have:
+We pledge to make participation in our project a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, religion, or sexual identity and orientation.
 
-- A quick summary and/or background
-- Steps to reproduce
-- What you expected would happen
-- What actually happens
-- Notes (possibly including why you think this might be happening)
+---
 
-## Use a Consistent Coding Style
+## 🚀 Getting Started
 
-* Use 4 spaces for indentation
-* Use descriptive variable names
-* Add comments for complex logic
-* Follow PEP 8 guidelines
+### Prerequisites
 
-## License
+1. **Python 3.8 or higher** installed
+2. **Git** installed
+3. **Windows OS** (currently supported)
+4. **Administrator privileges** for hardware access
 
-By contributing, you agree that your contributions will be licensed under its MIT License.
+### Fork the Repository
+
+1. Fork the repo on GitHub
+2. Clone your fork locally:
+```bash
+git clone https://github.com/your-username/occupancy-detection.git
+cd occupancy-detection
