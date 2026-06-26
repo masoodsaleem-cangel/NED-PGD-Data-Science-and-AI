@@ -178,9 +178,89 @@ def search_patient(patients, vitals):
         else:
             print("\n No vitals recorded yet for this patient.")
 
+# ==================== 4. MODIFY PATIENT ====================
+def modify_patient(patients):
+    """Modify an existing patient's information"""
+    print("\n" + "="*50)
+    print("MODIFY PATIENT")
+    print("="*50)
+    
+    if not patients:
+        print("No patients found. Please add patients first.")
+        return patients
+    
+    print("\nExisting Patients:")
+    for p in patients:
+        print(f"  {p['id']} - {p['name']}")
+    
+    patient_id = input("\nEnter Patient ID to modify: ")
+    
+    patient_found = None
+    for p in patients:
+        if p['id'] == patient_id:
+            patient_found = p
+            break
+    
+    if not patient_found:
+        print(" Patient not found!")
+        return patients
+    
+    print(f"\nModifying patient: {patient_found['name']} ({patient_found['id']})")
+    print("-"*40)
+    
+    new_name = input(f"Enter new name [{patient_found['name']}]: ").strip()
+    if new_name:
+        patient_found['name'] = new_name
+    
+    new_blood = input(f"Enter new blood type [{patient_found['blood_type']}]: ").strip()
+    if new_blood:
+        patient_found['blood_type'] = new_blood
+    
+    new_phone = input(f"Enter new phone number [{patient_found['phone']}]: ").strip()
+    if new_phone:
+        patient_found['phone'] = new_phone
+    
+    print(f"\n Patient {patient_found['id']} updated successfully!")
+    return patients
 
-
-
+# ==================== 5. DELETE PATIENT ====================
+def delete_patient(patients, vitals):
+    """Delete a patient and their vitals history"""
+    print("\n" + "="*50)
+    print("DELETE PATIENT")
+    print("="*50)
+    
+    if not patients:
+        print("No patients found.")
+        return patients, vitals
+    
+    print("\nExisting Patients:")
+    for p in patients:
+        print(f"  {p['id']} - {p['name']}")
+    
+    patient_id = input("\nEnter Patient ID to delete: ")
+    
+    patient_found = None
+    for p in patients:
+        if p['id'] == patient_id:
+            patient_found = p
+            break
+    
+    if not patient_found:
+        print(" Patient not found!")
+        return patients, vitals
+    
+    print(f"\n WARNING: You are about to delete {patient_found['name']} ({patient_found['id']})")
+    confirm = input("Type 'YES' to confirm deletion: ")
+    
+    if confirm == 'YES':
+        patients = [p for p in patients if p['id'] != patient_id]
+        vitals = [v for v in vitals if v['patient_id'] != patient_id]
+        print(f"\n Patient {patient_id} and their vitals history deleted!")
+    else:
+        print(" Deletion cancelled.")
+    
+    return patients, vitals
 
 
 
