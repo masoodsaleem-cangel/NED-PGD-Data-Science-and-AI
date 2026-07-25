@@ -287,11 +287,16 @@ Your MUhammad Masood Saleem
 
 GitHub: @masoodsaleem-cangel
 
-Email: your.email@example.com
+Email: masoodsaleem@hotmail.com
 
 🙏 Acknowledgments
 University Project Supervisor
-Sir Uzair
+Respected Sir Uzair
+https://www.linkedin.com/in/syed-uzair-hussain-ai/
+ &;
+Jungang Zheng for the research aid
+https://www.researchgate.net/publication/311609830_The_Study_of_RSSI_in_Wireless_Sensor_Networks
+
 
 NED - Data Science & AI Program
 
