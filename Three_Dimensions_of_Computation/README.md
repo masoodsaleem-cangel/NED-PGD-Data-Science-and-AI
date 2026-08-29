@@ -33,7 +33,7 @@ These are **exploratory variables**, not established fundamental dimensions of c
   <img src="demo.gif" alt="Streamlit Demo">
 </p>
 
-<p align="center">
+
   <em>Interactive demonstration of the Three Dimensions of Computation ML application.</em>
 </p>
 
