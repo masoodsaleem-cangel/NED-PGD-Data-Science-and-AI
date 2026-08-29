@@ -35,9 +35,6 @@ Below is a short demonstration of the interactive Streamlit application.
 
 The application allows users to interactively explore the proposed **Speed (S)**, **Capacity (C)**, and **Mathematical/Algorithmic Capability (M)** dimensions, modify synthetic assumptions, visualize computational trajectories, and compare Machine Learning models.
 
-![Streamlit Demo](demo.gif)
-
-
 ## Why Synthetic Data?
 
 The difficult part of the idea is **M(t)**. Speed and capacity can eventually be connected to measurable hardware quantities, but there is no simple universal unit for "mathematical/algorithmic capability."
