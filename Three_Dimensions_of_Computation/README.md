@@ -27,16 +27,17 @@ where:
 
 These are **exploratory variables**, not established fundamental dimensions of computation.
 
-## Streamlit Demo
+## 🎬 Streamlit Demo
 
-Below is a short demonstration of the interactive Streamlit application.
+<p align="center">
+  <img src="demo.gif" alt="Streamlit Demo" height="800">
+</p>
 
-![Three Dimensions of Computation - Streamlit Demo](demo.gif)
+<p align="center">
+  <em>Interactive demonstration of the Three Dimensions of Computation ML application.</em>
+</p>
 
 The application allows users to interactively explore the proposed **Speed (S)**, **Capacity (C)**, and **Mathematical/Algorithmic Capability (M)** dimensions, modify synthetic assumptions, visualize computational trajectories, and compare Machine Learning models.
-
-![Streamlit Demo](demo.gif)
-
 
 ## Why Synthetic Data?
 
