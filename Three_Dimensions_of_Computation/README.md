@@ -30,7 +30,7 @@ These are **exploratory variables**, not established fundamental dimensions of c
 ## 🎬 Streamlit Demo
 
 <p align="center">
-  <img src="demo.gif" alt="Streamlit Demo" width="500" height="333">
+  <img src="demo.gif" alt="Streamlit Demo">
 </p>
 
 <p align="center">
