@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Three Dimensions of Computation</title>
+<style>
+  body {
+    font-family: Georgia, "Times New Roman", serif;
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 42px 48px 70px;
+    color: #202124;
+    line-height: 1.68;
+    background: #fff;
+  }
+  h1, h2, h3 { color: #111827; line-height: 1.25; }
+  h1 { font-size: 2.25rem; text-align:center; margin-bottom:.25rem; }
+  .subtitle { text-align:center; font-size:1.15rem; margin-bottom:1.5rem; color:#4b5563; }
+  .author { text-align:center; line-height:1.5; margin-bottom:2rem; }
+  .note {
+    border-left: 4px solid #6b7280;
+    padding: 10px 16px;
+    background:#f8fafc;
+    margin: 20px 0;
+  }
+  .formula {
+    text-align:center;
+    font-family: "Cambria Math", "Times New Roman", serif;
+    font-size:1.08rem;
+    margin: 16px 0;
+  }
+  table { border-collapse: collapse; width:100%; margin:18px 0; }
+  th, td { border:1px solid #d1d5db; padding:9px 11px; vertical-align:top; }
+  th { background:#f3f4f6; }
+  code { background:#f3f4f6; padding:1px 4px; border-radius:4px; }
+  .small { color:#6b7280; font-size:.92rem; }
+  @media (max-width: 700px) { body { padding:24px 18px 50px; } }
+</style>
+</head>
+<body>
+
+<h1>The Three Dimensions of Computation</h1>
+<div class="subtitle">An Exploratory Machine-Learning Framework for Speed, Capacity, and Mathematical/Algorithmic Capability</div>
+
+<div class="author">
+  <strong>Muhammad Masood Saleem</strong><br>
+  Student, Post Graduate Diploma — Data Science &amp; AI<br>
+  NED University<br>
+  Email: <a href="mailto:masoodsaleem@hotmail.com">masoodsaleem@hotmail.com</a>
+</div>
+
+<div class="note">
+<strong>Research status.</strong> This work is an exploratory student research project. The proposed three-dimensional representation, equations, synthetic worlds, and feasibility definitions are conceptual and experimental. They are not presented as established physical laws or empirically validated measures of computation.
+</div>
+
+<h2>Abstract</h2>
+<p>
+Computational progress is often described through improvements in physical hardware, including faster processors, larger memories, denser storage, and higher communication bandwidth. However, improvements in algorithms, mathematical representations, approximation methods, compression, parallelization, and other problem-solving techniques can also reduce the physical resources required to perform computation. This project explores whether these two forms of progress can be studied within a common conceptual framework.
+</p>
+<p>
+I propose an initial three-dimensional representation of computation consisting of <strong>Speed (S)</strong>, <strong>Capacity (C)</strong>, and <strong>Mathematical/Algorithmic Capability (M)</strong>. The purpose is not to claim that these are the only dimensions of computation, nor that they are fully independent. Instead, they provide a structured starting point for mathematical analysis and machine-learning experimentation.
+</p>
+<p>
+Because a reliable real-world measure of mathematical or algorithmic capability is difficult to construct, the present study uses synthetic data. Four hypothetical computational worlds are examined: hardware dominance, balanced development, algorithmic dominance, and mathematical saturation. A Streamlit application provides an interactive environment for changing assumptions, visualizing trajectories through the proposed computational space, and applying multiple classification models to estimate computational feasibility from S, C, and M.
+</p>
+<p>
+The present contribution is therefore methodological and exploratory: it converts a philosophical question about computation into a testable computational structure. Results produced by the synthetic experiment describe the consequences of the assumptions supplied to the model; they do not establish historical or physical truth. Future work would require operational definitions and real-world data capable of measuring the three dimensions independently enough for empirical validation.
+</p>
+
+<h2>1. Introduction</h2>
+<p>
+The development of computing can be viewed as a continuing attempt to overcome constraints. Physical improvements have increased processor throughput, memory, storage, addressability, and communication speed. Yet hardware alone does not determine what can be computed efficiently. A better algorithm can reduce the number of operations required, a mathematical transformation can reduce memory use, a representation can compress information, approximation can replace exact computation where appropriate, and parallelization can reorganize sequential work.
+</p>
+<p>
+This motivates the central question of the project: <strong>can computational progress be usefully studied as an interaction between physical resources and mathematical or algorithmic methods?</strong>
+</p>
+<p>
+As a first approximation, I represent a computational system at time <em>t</em> by:
+</p>
+<div class="formula">X(t) = [S(t), C(t), M(t)]</div>
+<p>
+where S represents Speed, C represents Capacity, and M represents Mathematical/Algorithmic Capability. These variables are intentionally abstract in the current stage of the project. Their role is to create a formal structure in which assumptions can be made explicit and tested.
+</p>
+
+<h2>2. The Three Proposed Dimensions</h2>
+
+<h3>2.1 Speed, S(t)</h3>
+<p>
+Speed represents the rate at which a computational system can perform useful operations. Depending on the application, a future empirical implementation might use operations per second, throughput, latency-adjusted throughput, or an energy-normalized measure. In the synthetic study, S is normalized to a baseline value and allowed to evolve according to configurable growth assumptions.
+</p>
+
+<h3>2.2 Capacity, C(t)</h3>
+<p>
+Capacity represents the ability of a computational system to store, represent, access, and move information. The concept may eventually need to be decomposed into storage capacity, working memory, address space, memory bandwidth, and communication bandwidth. For the initial experiment, these properties are combined into one normalized variable so that the interaction among dimensions can be studied without introducing excessive complexity.
+</p>
+
+<h3>2.3 Mathematical/Algorithmic Capability, M(t)</h3>
+<p>
+The third dimension represents improvements in the methods used to formulate and solve computational problems. It includes changes in algorithmic complexity, mathematical transformations, data structures, representations, compression, approximation, sparsity, optimization methods, and parallelization strategies.
+</p>
+<p>
+M(t) is not intended to measure the total amount of mathematics known by humanity. It is an abstract proxy for the extent to which improved methods can reduce the physical resources required to achieve a computational objective. This makes M the most difficult variable to define empirically and the main reason the present project begins with synthetic data.
+</p>
+
+<h2>3. Mathematical Leverage</h2>
+<p>
+A useful way to interpret algorithmic improvement is through resource savings. Suppose a task requires R<sub>0</sub> units of a relevant physical resource under a baseline method and R<sub>1</sub> units after an algorithmic improvement. I define a simple leverage quantity:
+</p>
+<div class="formula">L<sub>M</sub> = R<sub>0</sub> / R<sub>1</sub></div>
+<p>
+If L<sub>M</sub> = 10, the improved method requires one tenth of the relevant physical resource for the same task under the chosen measurement. This does not mean that mathematics creates additional hardware; rather, it describes how an improved method can change the amount of hardware needed for a particular computational objective.
+</p>
+<p>
+This asymmetry is important. Speed and Capacity are primarily resource variables, whereas Mathematical/Algorithmic Capability can also transform the requirements placed on those resources.
+</p>
+
+<h2>4. Exploratory Computational Model</h2>
+<p>
+The system state is represented by X(t) = [S(t), C(t), M(t)]. For the current synthetic experiment, an abstract effective-capability quantity is defined as:
+</p>
+<div class="formula">E(t) = S(t) × C(t) × M(t)</div>
+<p>
+This multiplicative equation is <strong>not</strong> claimed to be a fundamental law of computation. It is an operational starting point that makes interaction among the three variables explicit and allows controlled experimentation. A more general empirical model could take the form:
+</p>
+<div class="formula">E(t) = S(t)<sup>α</sup> C(t)<sup>β</sup> M(t)<sup>γ</sup></div>
+<p>
+or, after taking logarithms:
+</p>
+<div class="formula">log E = α log S + β log C + γ log M</div>
+<p>
+where α, β, and γ could eventually be estimated from empirical data rather than assumed.
+</p>
+
+<h2>5. Computational Requirements and Feasibility</h2>
+<p>
+A computational problem also has requirements. Let R<sub>S</sub>, R<sub>C</sub>, and R<sub>M</sub> denote required speed, capacity, and algorithmic sophistication. A simple resource-based formulation would consider a task feasible when the available resources meet its requirements.
+</p>
+<p>
+However, M can affect the requirements themselves. An algorithmic improvement may reduce the number of operations or the amount of memory required:
+</p>
+<div class="formula">M ↑ &nbsp;⇒&nbsp; R<sub>S</sub> ↓ and/or R<sub>C</sub> ↓</div>
+<p>
+The current Streamlit implementation uses a simplified operational definition in which effective capability is compared with synthetic computational demand. This is a deliberate experimental choice rather than a claim that real feasibility can always be reduced to a single threshold.
+</p>
+
+<h2>6. Research Questions</h2>
+<p>The current project is organized around the following exploratory questions:</p>
+<ol>
+  <li>Can computational progress be represented meaningfully using Speed, Capacity, and Mathematical/Algorithmic Capability?</li>
+  <li>Can algorithmic improvements be expressed as equivalent reductions in physical-resource requirements?</li>
+  <li>Under what assumed growth conditions does M become more influential than S or C within the synthetic model?</li>
+  <li>How do conclusions change when M is allowed to saturate rather than grow indefinitely?</li>
+  <li>Can machine-learning models identify useful relationships among S, C, M, and synthetic computational feasibility?</li>
+  <li>Are the three dimensions sufficiently independent for this representation, or should they ultimately be modeled as coupled variables?</li>
+  <li>Can a later empirical study construct defensible real-world proxies for the three dimensions?</li>
+</ol>
+
+<h2>7. Synthetic Experimental Design</h2>
+<p>
+The first stage uses synthetic data because the operationalization of M is not yet mature enough for a reliable historical dataset. Synthetic data provides a controlled theoretical laboratory in which assumptions are visible and reproducible.
+</p>
+<p>
+A basic growth model is:
+</p>
+<div class="formula">
+S(t) = S<sub>0</sub>e<sup>r<sub>S</sub>t</sup>,
+&nbsp;
+C(t) = C<sub>0</sub>e<sup>r<sub>C</sub>t</sup>,
+&nbsp;
+M(t) = M<sub>0</sub>e<sup>r<sub>M</sub>t</sup>
+</div>
+<p>
+The interactive application allows the user to modify initial values, growth rates, noise, demand growth, the random seed, and a feasibility multiplier.
+</p>
+
+<table>
+<thead>
+<tr><th>Synthetic world</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td>Hardware Dominant</td><td>Explore a system in which physical Speed and Capacity grow more rapidly than M.</td></tr>
+<tr><td>Balanced Development</td><td>Explore comparable growth across the three proposed dimensions.</td></tr>
+<tr><td>Algorithmic Dominance</td><td>Explore the consequences of M growing sufficiently rapidly to compensate for physical-resource limitations.</td></tr>
+<tr><td>Mathematical Saturation</td><td>Explore a bounded M(t) that approaches a limiting value rather than increasing without bound.</td></tr>
+</tbody>
+</table>
+
+<p>
+The purpose of these worlds is not prediction. They are counterfactual experimental settings designed to reveal how the framework behaves under different assumptions.
+</p>
+
+<h2>8. Machine-Learning Experiment</h2>
+<p>
+Machine learning is the practical experimental component of this project. The primary classification task is:
+</p>
+<div class="formula">P(Feasible | S, C, M)</div>
+<p>
+Synthetic observations of S, C, and M are generated across a broad numerical range. A binary feasibility target is then generated from the operational rules of the synthetic world, including a configurable nonlinear interaction involving M. The application splits the generated data into training and test sets and compares several supervised classification models.
+</p>
+<p>
+The current implementation supports Logistic Regression, Decision Tree, Random Forest, K-Nearest Neighbors, Support Vector Machine, Gaussian Naive Bayes, Gradient Boosting, and a Multi-Layer Perceptron neural network. Performance is compared using Accuracy, Precision, Recall, F1 score, and ROC-AUC. The application also displays ROC curves, Precision–Recall curves, confusion matrices, selected feature-importance views, predicted-probability distributions, and two- and three-dimensional visualizations of the synthetic computational space.
+</p>
+<p>
+The objective is not merely to select the highest-performing classifier. The ML experiment is used as a tool for asking how easily the synthetic feasibility boundary can be learned, how model behavior changes under different assumptions, and whether the relative influence of the three dimensions changes across hypothetical worlds.
+</p>
+
+<h2>9. Dominance and Sensitivity</h2>
+<p>
+For exploratory visualization, normalized variables are defined relative to their starting values. A simple algorithmic-dominance ratio is:
+</p>
+<div class="formula">D<sub>M</sub>(t) = M<sub>n</sub>(t) / [S<sub>n</sub>(t) + C<sub>n</sub>(t)]</div>
+<p>
+A value greater than one is used only as a synthetic classification rule under this normalization. It should not be interpreted as a universal physical definition of algorithmic dominance.
+</p>
+<p>
+Sensitivity analysis is therefore essential. If a conclusion disappears when growth rates, normalization, noise, or feasibility assumptions are changed slightly, that conclusion should be treated as dependent on the chosen model rather than as evidence about computation in general.
+</p>
+
+<h2>10. Interpretation of Synthetic Results</h2>
+<p>
+Synthetic results must be interpreted conditionally. If M(t) is programmed to grow faster than S(t) and C(t), and the resulting model indicates that M becomes dominant, the valid conclusion is only that <em>under those assumptions</em>, the modeled system enters an algorithmically dominant regime.
+</p>
+<p>
+The experiment does not demonstrate that real mathematical or algorithmic capability follows the same growth law. Similarly, high machine-learning accuracy does not validate the philosophical theory when the labels themselves are generated from synthetic rules related to the input variables. In that setting, predictive performance mainly shows that the chosen rule can be learned from the simulated data.
+</p>
+
+<h2>11. Limitations</h2>
+<p>
+The present version has several important limitations. First, the three dimensions are abstract and do not yet have common physical units. Second, M(t) lacks a universally accepted empirical measurement. Third, the dimensions may be coupled: hardware improvements can enable new algorithms, while algorithms can reduce hardware requirements. Fourth, the multiplicative E(t) model and the feasibility threshold are experimental definitions. Fifth, synthetic data cannot establish historical causation, physical truth, or future technological trends.
+</p>
+<p>
+The study should therefore be understood as a structured hypothesis-building exercise rather than a validated theory of computation.
+</p>
+
+<h2>12. Transition to Real Data</h2>
+<p>
+A future empirical stage would require defensible proxies for each dimension. Speed and Capacity may be estimated from historical processor, memory, storage, and communication data. M is more difficult. One possible strategy is to hold a target capability level K approximately fixed and measure the computational resources A(K,t) required to achieve it at different times. A decrease in A(K,t) could then serve as an indirect measure of algorithmic efficiency improvement.
+</p>
+<p>
+This approach would still require careful control for hardware changes, dataset changes, software implementation, task definitions, and changes in target quality. Constructing such a dataset is therefore a separate research problem rather than a simple extension of the current simulation.
+</p>
+
+<h2>13. Relationship Among the Dimensions</h2>
+<p>
+The three variables should not be assumed to be independent. A richer future model could treat them as a coupled dynamical system:
+</p>
+<div class="formula">
+dS/dt = f(S,C,M), &nbsp;
+dC/dt = g(S,C,M), &nbsp;
+dM/dt = h(S,C,M)
+</div>
+<p>
+This would allow the model to represent feedback relationships such as hardware enabling new computational methods and improved algorithms changing the effective value of hardware resources.
+</p>
+
+<h2>14. Computational Frontier</h2>
+<p>
+Another possible extension is to represent a frontier between feasible and infeasible computation:
+</p>
+<div class="formula">F(S,C,M) = 0</div>
+<p>
+The frontier could provide a geometric interpretation of computational progress. Improvements in S and C would move a system through the physical dimensions of the space, while improvements in M could change the resource requirements associated with the frontier itself. Machine learning could eventually be used to estimate such a boundary from empirical observations, provided meaningful real-world labels can be constructed.
+</p>
+
+<h2>15. Expected Contribution</h2>
+<p>
+The intended contribution of this student project is not a claim that algorithmic capability is inherently superior to hardware, nor a claim that mathematical progress is unlimited. The contribution is the construction of a testable framework around a philosophical idea:
+</p>
+<div class="formula">Computation ≈ Speed + Capacity + Mathematical/Algorithmic Capability</div>
+<p>
+The framework distinguishes between increasing physical resources and reducing the resources required by better methods. It then provides a synthetic environment in which alternative assumptions can be simulated, visualized, and examined through machine learning.
+</p>
+
+<h2>16. Conclusion</h2>
+<p>
+Computational progress is partly physical and partly methodological. Faster processors, larger memories, denser storage, and faster communication increase the resources available to computation. Better mathematics and algorithms can change how much of those resources a problem requires.
+</p>
+<p>
+This project organizes that observation into three exploratory dimensions: Speed, Capacity, and Mathematical/Algorithmic Capability. The resulting framework is deliberately provisional. Its value at this stage is that it turns a difficult philosophical question into variables, equations, synthetic scenarios, visualizations, and machine-learning experiments that can be inspected and challenged.
+</p>
+<p>
+The current synthetic study should therefore be treated as the beginning of the investigation rather than its conclusion. The more demanding next step is empirical: define measurable proxies, construct historical or task-based datasets, and test whether the three-dimensional representation explains real computational change better than simpler alternatives.
+</p>
+
+<h2>17. Starting Literature</h2>
+<p>
+Hernandez, D., &amp; Brown, T. B. (2020). <em>Measuring the Algorithmic Efficiency of Neural Networks.</em> arXiv:2005.04305.
+</p>
+<p>
+Wang, Y., Ding, C., Li, Z., et al. (2018). <em>Towards Ultra-High Performance and Energy Efficiency of Deep Learning Systems: An Algorithm-Hardware Co-Optimization Framework.</em> Proceedings of the AAAI Conference on Artificial Intelligence.
+</p>
+<p>
+Sun, P., Su, Z., Achterberg, J., et al. (2026). <em>Algorithm–hardware co-design of neuromorphic networks with dual memory pathways.</em> Nature Machine Intelligence, 8, 901–912.
+</p>
+
+<h2>18. Research Notebook: Open Questions</h2>
+<ol>
+<li>What is the most defensible mathematical definition of M(t)?</li>
+<li>Can algorithmic efficiency be separated empirically from hardware improvement?</li>
+<li>Should Capacity be decomposed into storage, memory, addressability, and communication?</li>
+<li>What measure of Speed is appropriate across different computational systems?</li>
+<li>Can S, C, and M be normalized without making the result mostly an artifact of the normalization?</li>
+<li>Which classes of computational problems are suitable for controlled synthetic and empirical experiments?</li>
+<li>Can ML identify interactions among S, C, and M rather than simply rank individual variables?</li>
+<li>Does algorithmic leverage have an empirical upper bound for specific problem classes?</li>
+<li>How do complexity theory and computability theory constrain possible improvements in M?</li>
+<li>Can historical data identify periods in which algorithmic improvement contributed more than hardware improvement?</li>
+<li>Can AI-assisted algorithm discovery accelerate the effective growth of M(t)?</li>
+<li>If algorithm discovery becomes increasingly automated, should M(t) be modeled as endogenous to the computational system?</li>
+</ol>
+
+<p class="small"><strong>Version:</strong> Exploratory academic revision for the Machine Learning project.</p>
+</body>
+</html>
