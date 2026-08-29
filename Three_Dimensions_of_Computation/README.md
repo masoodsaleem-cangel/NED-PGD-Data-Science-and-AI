@@ -30,7 +30,7 @@ These are **exploratory variables**, not established fundamental dimensions of c
 ## 🎬 Streamlit Demo
 
 <p align="center">
-  <img src="demo.gif" alt="Three Dimensions of Computation - Streamlit Demo" width="487" height="750">
+  <img src="demo.gif" alt="Streamlit Demo" height="650">
 </p>
 
 <p align="center">
