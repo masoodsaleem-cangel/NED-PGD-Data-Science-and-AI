@@ -1,0 +1,5 @@
+streamlit>=1.40,<2
+SQLAlchemy>=2.0,<3
+PyMySQL>=1.1,<2
+cryptography>=43
+tzdata>=2024.1
