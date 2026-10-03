@@ -77,3 +77,15 @@ replies = Table('replies', metadata,
     Column('author_id', Integer, ForeignKey('users.id'), nullable=False),
     Column('body', Text, nullable=False),
     Column('created_at', String(25), nullable=False))
+
+def init_db():
+    metadata.create_all(engine)
+
+def query(sql, **params):
+    with engine.connect() as conn:
+        return [dict(row) for row in conn.execute(text(sql), params).mappings()]
+
+def execute(sql, **params):
+    with engine.begin() as conn:
+        result = conn.execute(text(sql), params)
+        return result.lastrowid
