@@ -1,0 +1,47 @@
+"""Business rules: all protected actions check the current user's role and scope."""
+import hashlib
+import hmac
+import secrets
+import re
+import time
+from datetime import datetime, date
+from zoneinfo import ZoneInfo
+from sqlalchemy import text
+from db import query, execute, engine
+
+
+def now():
+    return datetime.now(ZoneInfo('Asia/Karachi')).isoformat(timespec='seconds')
+
+
+def digest(value):
+    salt = secrets.token_hex(16)
+    hashed = hashlib.pbkdf2_hmac('sha256', value.encode(), salt.encode(), 600000).hex()
+    return f'{salt}${hashed}'
+
+
+def verify(value, stored):
+    salt, expected = stored.split('$')
+    actual = hashlib.pbkdf2_hmac('sha256', value.encode(), salt.encode(), 600000).hex()
+    return hmac.compare_digest(actual, expected)
+
+
+def cnic_digits(value):
+    value = value.strip().replace('-', '').replace(' ', '')
+    if not re.fullmatch(r'[0-9]{13}', value):
+        raise ValueError('CNIC must contain 13 digits.')
+    return value
+
+
+def required(value, maximum):
+    value = value.strip()
+    if not value or len(value) > maximum:
+        raise ValueError(f'Please enter text between 1 and {maximum} characters.')
+    return value
+
+
+def actor(uid, roles=('admin', 'teacher', 'parent')):
+    rows = query('SELECT id, username, name, role FROM users WHERE id=:id AND active=1', id=uid)
+    if not rows or rows[0]['role'] not in roles:
+        raise PermissionError('You do not have access to this action.')
+    return rows[0]
