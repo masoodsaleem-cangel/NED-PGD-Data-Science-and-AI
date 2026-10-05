@@ -45,3 +45,31 @@ def actor(uid, roles=('admin', 'teacher', 'parent')):
     if not rows or rows[0]['role'] not in roles:
         raise PermissionError('You do not have access to this action.')
     return rows[0]
+
+
+def login(role, identifier, password, cnic=''):
+    if role == 'parent':
+        try:
+            cnic = cnic_digits(cnic)
+        except ValueError:
+            return None
+        candidates = query('''SELECT u.*, p.cnic_hash FROM users u
+            JOIN parents p ON p.user_id=u.id
+            JOIN student_parents sp ON sp.parent_id=u.id
+            JOIN students s ON s.id=sp.student_id
+            WHERE s.student_code=:code AND u.role='parent' AND u.active=1''', code=identifier.strip())
+        candidates = [r for r in candidates if verify(cnic, r['cnic_hash'])]
+    else:
+        candidates = query('SELECT * FROM users WHERE username=:name AND role=:role AND active=1',
+                           name=identifier.strip(), role=role)
+    for user in candidates:
+        if user['locked_until'] > time.time():
+            continue
+        if verify(password, user['password_hash']):
+            execute('UPDATE users SET failures=0, locked_until=0 WHERE id=:id', id=user['id'])
+            return actor(user['id'])
+        failures = user['failures'] + 1
+        execute('UPDATE users SET failures=:f, locked_until=:t WHERE id=:id',
+                f=0 if failures >= 5 else failures,
+                t=int(time.time()) + 300 if failures >= 5 else 0, id=user['id'])
+    return None
