@@ -21,4 +21,13 @@ def choose(label, rows, key, field='name'):
                         format_func=lambda x: next(r[field] for r in rows if r['id']==x), key=key)
 
 
-def save(action)
+def save(action):
+    try:
+        action()
+        st.success('Saved successfully.')
+    except IntegrityError:
+        st.error('This record already exists, or a required linked record is missing.')
+    except (ValueError, PermissionError) as exc:
+        st.error(str(exc))
+    except SQLAlchemyError:
+        st.error('The database could not save this change. Check the connection and try again.')
