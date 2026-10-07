@@ -11,5 +11,14 @@ st.set_page_config(page_title='School Diary',page_icon='📖', layout='wide')
 st.markdown('''<style>
 .stApp {background:#f6f7fb;}
 h1,h2,h3 {color:#44305d;}
-[data-testid="stMetric"] {background:white;padding:18px;border-radius:14px;}</style>''', unsafe_allow_html=True)
+[data-testid="stMetric"] {background:white;padding:18px;border-radius:14px;}
+</style>''', unsafe_allow_html=True)
 init_db()
+
+
+def choose(label, rows, key, field='name'):
+    return st.selectbox(label, [r['id'] for r in rows],
+                        format_func=lambda x: next(r[field] for r in rows if r['id']==x), key=key)
+
+
+def save(action)
