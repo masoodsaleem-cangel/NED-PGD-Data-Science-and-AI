@@ -5,6 +5,7 @@ from pathlib import Path
 from sqlalchemy import (create_engine, event, MetaData, Table, Column, Integer,
                         String, Text, ForeignKey, CheckConstraint, text)
 from sqlalchemy.engine import URL
+from sqlalchemy.engine import make_url
 
 DEFAULT_DB = 'sqlite:///' + str(Path(__file__).with_name('diary.db'))
 config = configparser.ConfigParser(interpolation=None)
@@ -16,7 +17,20 @@ if not os.getenv('DATABASE_URL') and config.has_section('mysql'):
                      password=section.get('password', ''), host=section.get('host', 'localhost'),
                      port=section.getint('port', 3306), database=section.get('database', 'school_diary'),
                      query={'charset': 'utf8mb4'})
-engine = create_engine(url, pool_pre_ping=True)
+connection_options = {}
+
+if make_url(url).get_backend_name() == "mysql":
+    connection_options = {
+        "ssl_ca": r"C:\Users\xlx\Documents\AntiG\SQL\ca.pem",
+        "ssl_verify_cert": True,
+        "ssl_verify_identity": True,
+    }
+
+engine = create_engine(
+    url,
+    pool_pre_ping=True,
+    connect_args=connection_options,
+)
 if engine.dialect.name == 'sqlite':
     @event.listens_for(engine, 'connect')
     def enable_foreign_keys(connection, _):
