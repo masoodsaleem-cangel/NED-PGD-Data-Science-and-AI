@@ -1,41 +1,40 @@
-"""Relational schema and parameterized SQL. SQLite by default; MySQL via DATABASE_URL."""
-import os
-import configparser
+"""Database connection and table definitions."""
+
 from pathlib import Path
-from sqlalchemy import (create_engine, event, MetaData, Table, Column, Integer,
-                        String, Text, ForeignKey, CheckConstraint, text)
+import streamlit as st
+
+from sqlalchemy import (
+    create_engine, MetaData, Table, Column, Integer,
+    String, Text, ForeignKey, CheckConstraint, text
+)
 from sqlalchemy.engine import URL
-from sqlalchemy.engine import make_url
 
-DEFAULT_DB = 'sqlite:///' + str(Path(__file__).with_name('diary.db'))
-config = configparser.ConfigParser(interpolation=None)
-config.read(Path(__file__).with_name('config.ini'))
-url = os.getenv('DATABASE_URL', DEFAULT_DB)
-if not os.getenv('DATABASE_URL') and config.has_section('mysql'):
-    section = config['mysql']
-    url = URL.create('mysql+pymysql', username=section.get('user', 'root'),
-                     password=section.get('password', ''), host=section.get('host', 'localhost'),
-                     port=section.getint('port', 3306), database=section.get('database', 'school_diary'),
-                     query={'charset': 'utf8mb4'})
-connection_options = {}
 
-if make_url(url).get_backend_name() == "mysql":
-    connection_options = {
-        "ssl_ca": r"C:\Users\xlx\Documents\AntiG\SQL\ca.pem",
-        "ssl_verify_cert": True,
-        "ssl_verify_identity": True,
-    }
+# Read credentials from Streamlit Secrets.
+settings = st.secrets["mysql"]
+
+url = URL.create(
+    "mysql+pymysql",
+    username=settings["user"],
+    password=settings["password"],
+    host=settings["host"],
+    port=int(settings["port"]),
+    database=settings["database"],
+    query={"charset": "utf8mb4"},
+)
+
+# Locate ca.pem beside this Python file.
+certificate = Path(__file__).resolve().with_name("ca.pem")
 
 engine = create_engine(
     url,
     pool_pre_ping=True,
-    connect_args=connection_options,
+    connect_args={
+        "ssl_ca": str(certificate),
+        "ssl_verify_cert": True,
+        "ssl_verify_identity": True,
+    },
 )
-if engine.dialect.name == 'sqlite':
-    @event.listens_for(engine, 'connect')
-    def enable_foreign_keys(connection, _):
-        connection.execute('PRAGMA foreign_keys=ON')
-        connection.execute('PRAGMA busy_timeout=5000')
 
 metadata = MetaData()
 users = Table('users', metadata,
