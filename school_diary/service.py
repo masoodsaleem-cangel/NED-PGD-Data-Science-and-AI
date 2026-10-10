@@ -358,22 +358,42 @@ AUDIENCE_SQL = '''((EXISTS (SELECT 1 FROM entry_audiences a WHERE a.entry_id=e.i
     AND (e.student_id IS NULL OR e.student_id=:s)))'''
 
 
-def diary(uid, student_id=None, class_id=None, on_date=None):
+def _diary_scope(uid, student_id, class_id):
+    """One authorization rule shared by the feed and its calendar markers."""
     user = actor(uid)
-    on_date = today() if on_date is None else date.fromisoformat(str(on_date))
-    sql = '''SELECT e.*,u.name AS teacher_name,a.scope AS audience_scope
-        FROM entries e JOIN users u ON u.id=e.author_id
-        LEFT JOIN entry_audiences a ON a.entry_id=e.id
-        WHERE e.class_id=:c AND SUBSTR(e.created_at,1,10)=:day'''
+    condition = 'e.class_id=:c'
     if user['role'] == 'parent':
         child = next((s for s in children(uid) if s['id']==student_id), None)
         if child is None:
             raise PermissionError('Student is not linked to your account.')
         class_id = child['class_id']
-        sql += ' AND ' + AUDIENCE_SQL
+        condition += ' AND ' + AUDIENCE_SQL
     else:
         _class_access(uid, class_id)
-    return query(sql+' ORDER BY e.created_at DESC,e.id DESC', c=class_id, s=student_id, day=on_date.isoformat())
+    return condition, dict(c=class_id, s=student_id)
+
+
+def diary_days(uid, student_id=None, class_id=None):
+    """Counts of accessible posts by posting day, never other families' entries."""
+    condition, params = _diary_scope(uid, student_id, class_id)
+    rows = query("""SELECT SUBSTR(e.created_at,1,10) AS day,COUNT(*) AS count
+        FROM entries e WHERE """ + condition +
+        ' GROUP BY SUBSTR(e.created_at,1,10) ORDER BY day', **params)
+    return {r['day']: r['count'] for r in rows}
+
+
+def diary(uid, student_id=None, class_id=None, on_date=None, end_date=None):
+    start = today() if on_date is None else date.fromisoformat(str(on_date))
+    end = start if end_date is None else date.fromisoformat(str(end_date))
+    if end < start:
+        raise ValueError('The end date must be on or after the start date.')
+    condition, params = _diary_scope(uid, student_id, class_id)
+    sql = """SELECT e.*,u.name AS teacher_name,a.scope AS audience_scope
+        FROM entries e JOIN users u ON u.id=e.author_id
+        LEFT JOIN entry_audiences a ON a.entry_id=e.id WHERE """ + condition + """
+        AND SUBSTR(e.created_at,1,10) BETWEEN :start AND :end
+        ORDER BY e.created_at DESC,e.id DESC"""
+    return query(sql, **params, start=start.isoformat(), end=end.isoformat())
 
 
 def _entry(uid, entry_id):

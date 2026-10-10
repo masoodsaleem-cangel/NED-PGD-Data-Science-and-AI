@@ -1,15 +1,30 @@
 """Run: python -m streamlit run app.py"""
 import time
+import hashlib
 from datetime import datetime
 import streamlit as st
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 import service as svc
 from db import init_db
+from diary_calendar import date_calendar, stretch
 
 st.set_page_config(page_title='School Diary', page_icon='📖', layout='wide')
 st.markdown('''<style>
 [data-testid="stMetric"] {padding:16px;border-radius:14px;border:1px solid #8883;}
 [data-testid="stVerticalBlockBorderWrapper"] {border-radius:14px;}
+/* The diary calendar remains compact on desktop and fits phone screens. */
+[data-testid="stPopoverBody"]:has(.diary-calendar-marker) {
+    width: min(460px, calc(100vw - 32px));
+}
+[data-testid="stPopoverBody"]:has(.diary-calendar-marker) [data-testid="stHorizontalBlock"] {
+    gap: 5px; flex-wrap: nowrap;
+}
+[data-testid="stPopoverBody"]:has(.diary-calendar-marker) [data-testid="stColumn"] {
+    min-width: 0 !important;
+}
+[data-testid="stPopoverBody"]:has(.diary-calendar-marker) button {
+    padding: 0.25rem; min-height: 2.3rem;
+}
 </style>''', unsafe_allow_html=True)
 
 
@@ -101,11 +116,33 @@ def show_invitation_code():
             st.rerun()
 
 
-def remove_control(uid, kind, record_id, label):
-    if st.button('×', key=f'remove_{kind}_{record_id}', help=f'Remove {label}'):
+def record_table(uid, kind, records, columns):
+    """Sortable table with one explicitly selected record and confirmed actions."""
+    if not records:
+        st.info('No records yet.')
+        return
+    table_data = [{label: r[field] for field, label in columns} for r in records]
+    # Reset selection if rows/order/status change so it cannot target a different row.
+    revision = hashlib.sha256(repr(([r['id'] for r in records], table_data)).encode()).hexdigest()[:12]
+    event = st.dataframe(table_data, hide_index=True, **stretch(st.dataframe),
+                         key=f'{kind}_table_{revision}', on_select='rerun', selection_mode='single-row')
+    selected = event.selection.rows
+    st.caption('Select a row using the box on its left to remove or restore that record.')
+    if not selected or not 0 <= selected[0] < len(records):
+        return
+    record = records[selected[0]]
+    rid = record['id']
+    label = record.get('username', record['name'])
+    st.write(f'Selected: {label}')
+    if kind=='user' and rid==uid:
+        st.caption('Your own administrator account is protected.')
+    elif record.get('archived'):
+        if st.button('Restore selected record', key=f'restore_{kind}_{rid}'):
+            run_action(lambda: svc.restore_record(uid, kind, rid), 'Record restored.')
+    elif st.button('× Remove selected record', key=f'remove_{kind}_{rid}'):
         try:
-            action = svc.removal_plan(uid, kind, record_id)
-            st.session_state.pending_removal = (kind, record_id, label, action)
+            action = svc.removal_plan(uid, kind, rid)
+            st.session_state.pending_removal = (kind, rid, label, action)
             st.rerun()
         except (ValueError, PermissionError) as exc:
             st.error(str(exc))
@@ -162,12 +199,9 @@ def admin_panel(uid):
                 run_action(lambda: svc.create_user(uid, name, username, role, password))
         st.subheader('User accounts')
         st.caption('× deletes unused accounts or disables accounts with history. You cannot remove your own account.')
-        for u in users:
-            row, control = st.columns([12, 1])
-            row.write(f"{u['name']} · @{u['username']} · {u['role']} · {'Enabled' if u['active'] else 'Disabled'}")
-            with control:
-                if u['id'] != uid:
-                    remove_control(uid, 'user', u['id'], u['username'])
+        account_rows = [dict(u, status='Enabled' if u['active'] else 'Disabled') for u in users]
+        record_table(uid, 'user', account_rows,
+                     [('id','ID'),('name','Name'),('username','Username'),('role','Role'),('status','Status')])
     with enrolment:
         with st.expander('Add a class'):
             with st.form('new_class', clear_on_submit=True):
@@ -198,25 +232,14 @@ def admin_panel(uid):
         else:
             st.info('Add a class first.')
         st.subheader('Students')
-        for s in svc.all_students(uid, True):
-            row, control = st.columns([12, 1])
-            row.write(f"{student_label(s)} · {s['class_name']}")
-            with control:
-                if s['archived']:
-                    if st.button('Restore', key=f"restore_s{s['id']}"):
-                        run_action(lambda sid=s['id']: svc.restore_record(uid, 'student', sid))
-                else:
-                    remove_control(uid, 'student', s['id'], student_label(s))
+        student_rows = [dict(s, status='Archived' if s['archived'] else 'Active')
+                        for s in svc.all_students(uid, True)]
+        record_table(uid, 'student', student_rows,
+                     [('student_code','Student ID'),('name','Student name'),('class_name','Class'),('status','Status')])
         st.subheader('Classes')
-        for c in svc.allowed_classes(uid, True):
-            row, control = st.columns([12, 1])
-            row.write(c['name'] + (' (archived)' if c['archived'] else ''))
-            with control:
-                if c['archived']:
-                    if st.button('Restore', key=f"restore_c{c['id']}"):
-                        run_action(lambda cid=c['id']: svc.restore_record(uid, 'class', cid))
-                else:
-                    remove_control(uid, 'class', c['id'], c['name'])
+        class_rows = [dict(c, status='Archived' if c['archived'] else 'Active')
+                      for c in svc.allowed_classes(uid, True)]
+        record_table(uid, 'class', class_rows, [('id','ID'),('name','Class'),('status','Status')])
     with invites:
         st.subheader('Invite a guardian for existing children')
         st.caption('Use this for a second guardian, siblings, or a replacement for an expired/locked invitation. Revoke the old invitation first.')
@@ -369,17 +392,29 @@ def diary_panel(uid, role):
         if not next(c['archived'] for c in classes if c['id']==cid):
             compose(uid, cid)
     st.subheader('Diary feed')
-    mode = st.radio('View entries', ['Today', 'Choose a date'], horizontal=True)
-    selected_date = svc.today() if mode=='Today' else st.date_input('Posting date', value=svc.today())
-    st.caption(f"Entries posted on {selected_date:%d %B %Y} · Pakistan time. Replies and acknowledgements include all dates.")
-    entries = svc.diary(uid, student_id=sid, class_id=cid, on_date=selected_date)
+    mode = st.radio('View entries', ['Today', 'Choose a date', 'Date range'], horizontal=True)
+    if mode=='Today':
+        start_date = end_date = svc.today()
+    else:
+        counts = svc.diary_days(uid, student_id=sid, class_id=cid)
+        context = f'{uid}_child_{sid}' if parent else f'{uid}_class_{cid}'
+        dates = date_calendar(counts, svc.today(), key=f'diary_calendar_{context}_{mode}',
+                              is_range=mode=='Date range')
+        if dates is None:
+            st.info('Choose an end date to display the diary feed.')
+            return
+        start_date, end_date = dates
+    period = (f'{start_date:%d %B %Y}' if start_date==end_date else
+              f'{start_date:%d %B %Y} to {end_date:%d %B %Y} (both dates included)')
+    st.caption(f'Entries posted: {period} · Pakistan time. Replies and acknowledgements include all dates.')
+    entries = svc.diary(uid, student_id=sid, class_id=cid, on_date=start_date, end_date=end_date)
     col1, col2 = st.columns([1, 2])
     kind = col1.selectbox('Type filter', ['All']+list(svc.KINDS))
-    search = col2.text_input('Search this day’s diary')
+    search = col2.text_input('Search selected dates')
     entries = [e for e in entries if (kind=='All' or e['kind']==kind) and
                search.casefold() in (e['title']+' '+e['body']+' '+e['subject']).casefold()]
     if not entries:
-        st.info('No matching entries for this date. Choose another date to view earlier posts.')
+        st.info('No matching entries for these dates. Choose another day or date range.')
     for entry in entries:
         show_entry(uid, entry, sid)
 
