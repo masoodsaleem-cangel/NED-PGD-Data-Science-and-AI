@@ -55,21 +55,38 @@ def date_calendar(day_counts, today, key, is_range=False):
     start, end = state['start'], state['end']
     st.caption('Posting date range' if is_range else 'Posting date')
     # Inline calendar: navigation fetches only the newly visible month.
-    with st.container(border=True):
+    st.markdown("""<style>
+/* Container-relative fonts scale with this calendar, not the whole viewport. */
+.st-key-school_calendar {container-type:inline-size;width:100%;min-width:0;}
+.st-key-school_calendar [data-testid="stHorizontalBlock"] {gap:3px !important;flex-wrap:nowrap !important;}
+.st-key-school_calendar [data-testid="stColumn"] {min-width:0 !important;}
+.st-key-school_calendar button {padding:0 !important;min-width:0 !important;min-height:32px;}
+.st-key-school_calendar button p {font-size:clamp(10px,4.4cqi,14px) !important;white-space:nowrap !important;
+    overflow:visible !important;text-overflow:clip !important;line-height:1.15;}
+.st-key-school_calendar [data-testid="stMarkdownContainer"] {min-width:0;}
+.st-key-school_calendar [data-testid="stCaptionContainer"] p {overflow-wrap:normal;}
+.st-key-school_calendar [data-baseweb="select"] {font-size:clamp(12px,5cqi,16px);}
+</style>""",unsafe_allow_html=True)
+    with st.container(border=True,key='school_calendar'):
         st.markdown('<span class="diary-calendar-marker"></span>', unsafe_allow_html=True)
         st.caption('Pick a start date, then an end date.' if is_range else 'Pick a day to view its diary.')
-        prev, month_col, year_col, nxt = st.columns([1, 3, 2, 1])
+        prev, heading, nxt = st.columns([1,5,1])
         with prev:
-            st.button('‹', key=key+'_prev', help='Previous month', on_click=move_month, args=(key,-1),
-                      disabled=st.session_state[key+'_year']==1900 and st.session_state[key+'_month']==1)
-        with month_col:
-            month = st.selectbox('Month', list(range(1,13)), key=key+'_month',
-                                 format_func=lambda m: calendar.month_name[m], label_visibility='collapsed')
-        with year_col:
-            year = st.selectbox('Year', list(range(1900,2101)), key=key+'_year', label_visibility='collapsed')
+            st.button('‹',key=key+'_prev',help='Previous month',on_click=move_month,args=(key,-1),
+                disabled=st.session_state[key+'_year']==1900 and st.session_state[key+'_month']==1,
+                **stretch(st.button))
+        with heading:
+            st.caption(f"{calendar.month_name[st.session_state[key+'_month']]} {st.session_state[key+'_year']}")
         with nxt:
-            st.button('›', key=key+'_next', help='Next month', on_click=move_month, args=(key,1),
-                      disabled=year==2100 and month==12)
+            st.button('›',key=key+'_next',help='Next month',on_click=move_month,args=(key,1),
+                disabled=st.session_state[key+'_year']==2100 and st.session_state[key+'_month']==12,
+                **stretch(st.button))
+        month_col,year_col=st.columns([3,2])
+        with month_col:
+            month=st.selectbox('Month',list(range(1,13)),key=key+'_month',
+                format_func=lambda m:calendar.month_abbr[m],label_visibility='collapsed')
+        with year_col:
+            year=st.selectbox('Year',list(range(1900,2101)),key=key+'_year',label_visibility='collapsed')
         if callable(day_counts):
             day_counts = day_counts(year, month)
         for col, weekday in zip(st.columns(7), ['M','T','W','T','F','S','S']):
@@ -99,3 +116,4 @@ def date_calendar(day_counts, today, key, is_range=False):
         return None
     st.caption(f'{start:%d %b %Y} → {end:%d %b %Y}' if is_range else f'{start:%d %B %Y}')
     return start, end
+

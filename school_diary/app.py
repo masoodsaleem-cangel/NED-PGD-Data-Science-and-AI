@@ -6,25 +6,15 @@ import streamlit as st
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 import service as svc
 from db import init_db
+from portal_message import render_welcome, message_editor
 from diary_calendar import date_calendar, stretch
 
 st.set_page_config(page_title='School Diary', page_icon='📖', layout='wide')
 st.markdown('''<style>
 [data-testid="stMetric"] {padding:16px;border-radius:14px;border:1px solid #8883;}
 [data-testid="stVerticalBlockBorderWrapper"] {border-radius:14px;}
-/* The diary calendar remains compact on desktop and fits phone screens. */
-[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .diary-calendar-marker) {
-    width: min(460px, calc(100vw - 32px));
-}
-[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .diary-calendar-marker) [data-testid="stHorizontalBlock"] {
-    gap: 5px; flex-wrap: nowrap;
-}
-[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .diary-calendar-marker) [data-testid="stColumn"] {
-    min-width: 0 !important;
-}
-[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .diary-calendar-marker) button {
-    padding: 0.25rem; min-height: 2.3rem;
-}
+/* Keep dialogs inside small screens; long messages scroll inside the dialog. */
+[role="dialog"] {max-width:calc(100vw - 24px) !important;max-height:90dvh;overflow-y:auto;}
 </style>''', unsafe_allow_html=True)
 
 
@@ -176,7 +166,10 @@ def admin_panel(uid):
     confirm_removal(uid)
     show_invitation_code()
     section = st.radio('Administration section', ['Overview', 'Accounts', 'Classes & students',
-                        'Parent invitations', 'Link accounts', 'Account access'], horizontal=True)
+                        'Parent invitations', 'Link accounts', 'Account access', 'Welcome message'], horizontal=True)
+    if section == 'Welcome message':
+        message_editor(uid,run_action)
+        return
     if section == 'Overview':
         activity_panel(uid)
         return
@@ -407,10 +400,8 @@ def diary_panel(uid, role):
         cid = choose('Class', classes, 'diary_class')
         if not next(c['archived'] for c in classes if c['id']==cid):
             compose(uid, cid)
-    st.subheader('Diary feed')
-    controls, feed = st.columns([1, 2.4],gap='large')
-    with controls:
-        st.subheader('Calendar & filters')
+    calendar_col, filters_col = st.columns([1, 1],gap='large')
+    with calendar_col:
         mode = st.radio('Selection', ['Single day', 'Date range'], horizontal=True)
         context = f'{uid}_{sid}_{cid}_{mode}'
         def month_counts(year, month):
@@ -426,6 +417,7 @@ def diary_panel(uid, role):
                 cache[key] = item
             return item[1]
         dates = date_calendar(month_counts,svc.today(),key=f'diary_calendar_{context}',is_range=mode=='Date range')
+    with filters_col:
         with st.form('feed_filters'):
             kind = st.selectbox('Type filter', ['All']+list(svc.KINDS))
             search = st.text_input('Search selected dates',max_chars=160)
@@ -433,30 +425,31 @@ def diary_panel(uid, role):
         if st.button('Refresh diary'):
             st.session_state.pop('month_counts',None)
             st.rerun()
-    with feed:
-        if dates is None:
-            st.info('Choose an end date to display the diary feed.')
-            return
-        start_date,end_date = dates
-        st.caption(f'{start_date:%d %b %Y} → {end_date:%d %b %Y} · Pakistan time')
-        signature = (uid,sid,cid,start_date,end_date,kind,search)
-        if st.session_state.get('feed_signature') != signature:
-            st.session_state.feed_signature = signature
-            st.session_state.feed_page = 0
-        page = st.session_state.get('feed_page',0)
-        entries,more = svc.feed_page(uid,sid,cid,start_date,end_date,page,kind,search)
-        if not entries:
-            st.info('No matching entries for these dates.')
-        for entry in entries:
-            show_entry(uid,entry,sid)
-        prev,next_col = st.columns(2)
-        if prev.button('Newer posts',disabled=page==0):
-            st.session_state.feed_page = page-1
-            st.rerun()
-        if next_col.button('Older posts',disabled=not more):
-            st.session_state.feed_page = page+1
-            st.rerun()
-        st.caption(f'Page {page+1} · Up to 10 posts')
+    st.divider()
+    st.subheader('Diary Feed')
+    if dates is None:
+        st.info('Choose an end date to display the diary feed.')
+        return
+    start_date,end_date = dates
+    st.caption(f'{start_date:%d %b %Y} → {end_date:%d %b %Y} · Pakistan time')
+    signature = (uid,sid,cid,start_date,end_date,kind,search)
+    if st.session_state.get('feed_signature') != signature:
+        st.session_state.feed_signature = signature
+        st.session_state.feed_page = 0
+    page = st.session_state.get('feed_page',0)
+    entries,more = svc.feed_page(uid,sid,cid,start_date,end_date,page,kind,search)
+    if not entries:
+        st.info('No matching entries for these dates.')
+    for entry in entries:
+        show_entry(uid,entry,sid)
+    prev,next_col = st.columns(2)
+    if prev.button('Newer posts',disabled=page==0):
+        st.session_state.feed_page = page-1
+        st.rerun()
+    if next_col.button('Older posts',disabled=not more):
+        st.session_state.feed_page = page+1
+        st.rerun()
+    st.caption(f'Page {page+1} · Up to 10 posts')
 
 
 def activity_panel(uid):
@@ -480,6 +473,7 @@ def activity_panel(uid):
 
 def main():
     init_db()
+    render_welcome()
     if st.session_state.get('flash'):
         st.success(st.session_state.pop('flash'))
     if 'user_id' not in st.session_state:
@@ -495,7 +489,6 @@ def main():
         st.rerun()
     st.session_state.last_activity = time.time()
     uid = user['id']
-    st.sidebar.title('📖 School Diary')
     st.sidebar.write(user['name'])
     st.sidebar.caption({'admin': 'Super admin', 'teacher': 'Teacher', 'parent': 'Parent'}[user['role']])
     pages = (['Administration'] if user['role']=='admin' else [])+['Diary', 'My password']
@@ -522,3 +515,4 @@ except SQLAlchemyError:
     st.error('The database is temporarily unavailable. Please refresh and try again.')
 except (ValueError, PermissionError) as exc:
     st.error(str(exc))
+
