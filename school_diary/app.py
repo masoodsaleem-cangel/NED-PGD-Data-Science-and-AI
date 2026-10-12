@@ -1,7 +1,7 @@
 """Run: python -m streamlit run app.py"""
 import time
 import hashlib
-from datetime import datetime
+from datetime import datetime, date
 import streamlit as st
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 import service as svc
@@ -13,16 +13,16 @@ st.markdown('''<style>
 [data-testid="stMetric"] {padding:16px;border-radius:14px;border:1px solid #8883;}
 [data-testid="stVerticalBlockBorderWrapper"] {border-radius:14px;}
 /* The diary calendar remains compact on desktop and fits phone screens. */
-[data-testid="stPopoverBody"]:has(.diary-calendar-marker) {
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .diary-calendar-marker) {
     width: min(460px, calc(100vw - 32px));
 }
-[data-testid="stPopoverBody"]:has(.diary-calendar-marker) [data-testid="stHorizontalBlock"] {
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .diary-calendar-marker) [data-testid="stHorizontalBlock"] {
     gap: 5px; flex-wrap: nowrap;
 }
-[data-testid="stPopoverBody"]:has(.diary-calendar-marker) [data-testid="stColumn"] {
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .diary-calendar-marker) [data-testid="stColumn"] {
     min-width: 0 !important;
 }
-[data-testid="stPopoverBody"]:has(.diary-calendar-marker) button {
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .diary-calendar-marker) button {
     padding: 0.25rem; min-height: 2.3rem;
 }
 </style>''', unsafe_allow_html=True)
@@ -41,6 +41,7 @@ def run_action(action, message='Saved successfully.', invitation=False):
     except SQLAlchemyError:
         st.error('The database could not save this change. Please try again.')
         return
+    st.session_state.pop('month_counts',None)
     if invitation and result:
         st.session_state.invitation_code = result
     st.session_state.flash = message
@@ -91,12 +92,12 @@ def login_screen():
                                          help='3–80 letters, numbers, dots, underscores or hyphens.')
                 password = st.text_input('Choose a password (10+ characters)', type='password', max_chars=256)
                 cnic = st.text_input('CNIC — 13 digits, no dashes', type='password', max_chars=13)
-                code = st.text_input('Invitation code', type='password', max_chars=100)
+                code = st.text_input('Invitation code', type='password', max_chars=100, help='Enter the six digits exactly, including any leading zero. Older long vouchers are also accepted until expiry.')
                 submitted = st.form_submit_button('Create my parent account', type='primary')
             if submitted:
                 run_action(lambda: svc.register_parent(username, password, cnic, code),
                            'Account created! Sign in with your new username and password.')
-            st.caption('The code works once and expires after 7 days. Your school can issue a replacement.')
+            st.caption('The code works once and expires after 24 hours. Your school can issue a replacement.')
 
 
 def show_invitation_code():
@@ -104,12 +105,12 @@ def show_invitation_code():
     if code:
         st.success('Invitation created. Copy this code and share it privately with the intended guardian.')
         st.code(code, language=None)
-        st.caption('Valid for 7 days and one registration. The school does not need to choose a parent password.')
+        st.caption('Valid for 24 hours and one registration. The school does not need to choose a parent password.')
         st.download_button('Download invitation slip',
             'SCHOOL DIARY — PARENT INVITATION\n\n'
             'Open the school portal and choose Register as a parent.\n'
             'Enter your chosen username, password, CNIC (13 digits) and this code:\n\n'
-            +code+'\n\nUse within 7 days. Keep this code private.\n',
+            +code+'\n\nUse within 24 hours. Keep this code private.\n',
             file_name='parent_invitation.txt', mime='text/plain')
         if st.button('I have copied the code — hide it'):
             del st.session_state.invitation_code
@@ -172,23 +173,25 @@ def confirm_removal(uid):
 
 def admin_panel(uid):
     st.header('School administration')
-    users = svc.directory(uid)
-    classes = svc.allowed_classes(uid)
-    students = svc.all_students(uid)
-    parents = [u for u in users if u['role']=='parent' and u['active']]
-    teachers = [u for u in users if u['role']=='teacher' and u['active']]
     confirm_removal(uid)
     show_invitation_code()
-    overview, people, enrolment, invites, links, access = st.tabs(
-        ['Overview', 'Accounts', 'Classes & students', 'Parent invitations', 'Link accounts', 'Account access'])
-    with overview:
-        cols = st.columns(3)
-        cols[0].metric('Active students', len(students))
-        cols[1].metric('Active classes', len(classes))
-        cols[2].metric('Enabled teachers', len(teachers))
-        st.info('New parent: enrol a child → share the invitation code → parent registers with CNIC and chooses a username/password.')
-        st.caption('A second guardian gets a separate invitation. Guardians linked to the same child share that child’s conversation.')
-    with people:
+    section = st.radio('Administration section', ['Overview', 'Accounts', 'Classes & students',
+                        'Parent invitations', 'Link accounts', 'Account access'], horizontal=True)
+    if section == 'Overview':
+        activity_panel(uid)
+        return
+    account_search = st.text_input('Find account (name or username)',key='admin_account_search') if section in ('Accounts','Classes & students','Link accounts','Account access') else ''
+    account_page = int(st.number_input('Account page',min_value=1,value=1,step=1)) if section=='Accounts' else 1
+    users = svc.directory(uid,limit=101,offset=(account_page-1)*100,search=account_search) if section in ('Accounts','Classes & students','Link accounts','Account access') else []
+    classes = svc.allowed_classes(uid) if section in ('Classes & students','Link accounts') else []
+    student_search = st.text_input('Find student (name or ID)',key='admin_student_search') if section in ('Parent invitations','Link accounts') else ''
+    students = svc.all_students(uid,limit=101,search=student_search) if section in ('Parent invitations','Link accounts') else []
+    if len(users)>100 or len(students)>100:
+        st.info('Showing the first 100 matches. Refine your search to find another record.')
+    users,students = users[:100],students[:100]
+    parents = [u for u in users if u['role']=='parent' and u['active']]
+    teachers = [u for u in users if u['role']=='teacher' and u['active']]
+    if section == 'Accounts':
         st.subheader('Create a staff account')
         with st.form('new_user', clear_on_submit=True):
             role = st.selectbox('Account type', ['teacher', 'admin'])
@@ -202,7 +205,7 @@ def admin_panel(uid):
         account_rows = [dict(u, status='Enabled' if u['active'] else 'Disabled') for u in users]
         record_table(uid, 'user', account_rows,
                      [('id','ID'),('name','Name'),('username','Username'),('role','Role'),('status','Status')])
-    with enrolment:
+    if section == 'Classes & students':
         with st.expander('Add a class'):
             with st.form('new_class', clear_on_submit=True):
                 class_name = st.text_input('Class and section', placeholder='Grade 3 • A', max_chars=80)
@@ -232,17 +235,19 @@ def admin_panel(uid):
         else:
             st.info('Add a class first.')
         st.subheader('Students')
+        roster_search = st.text_input('Search student records',key='roster_search')
+        roster_page = int(st.number_input('Student page',min_value=1,value=1,step=1))
         student_rows = [dict(s, status='Archived' if s['archived'] else 'Active')
-                        for s in svc.all_students(uid, True)]
+                        for s in svc.all_students(uid, True,limit=50,offset=(roster_page-1)*50,search=roster_search)]
         record_table(uid, 'student', student_rows,
                      [('student_code','Student ID'),('name','Student name'),('class_name','Class'),('status','Status')])
         st.subheader('Classes')
         class_rows = [dict(c, status='Archived' if c['archived'] else 'Active')
                       for c in svc.allowed_classes(uid, True)]
         record_table(uid, 'class', class_rows, [('id','ID'),('name','Class'),('status','Status')])
-    with invites:
+    if section == 'Parent invitations':
         st.subheader('Invite a guardian for existing children')
-        st.caption('Use this for a second guardian, siblings, or a replacement for an expired/locked invitation. Revoke the old invitation first.')
+        st.caption('Use this for a second guardian, siblings, or a replacement for an expired/locked invitation. Generating replaces the previous short code for this CNIC. Select every child to link.')
         if students:
             with st.form('new_invitation', clear_on_submit=True):
                 selected = select_students('Children to link', students, 'invitation_children')
@@ -251,7 +256,8 @@ def admin_panel(uid):
                 if st.form_submit_button('Generate invitation'):
                     run_action(lambda: svc.create_invitation(uid, selected, name, cnic),
                                'Invitation created.', invitation=True)
-        for invitation in svc.invitations(uid):
+        invite_page = int(st.number_input('Invitation page', min_value=1, value=1, step=1))
+        for invitation in svc.invitations(uid, offset=(invite_page-1)*20):
             row, control = st.columns([10, 2])
             expiry = datetime.fromtimestamp(invitation['expires_at'], svc.KARACHI).strftime('%d %b %Y, %H:%M')
             row.write(f"{invitation['guardian_name']} · {invitation['students']} · {invitation['status']}")
@@ -259,7 +265,7 @@ def admin_panel(uid):
             if invitation['status'] in ('Pending', 'Locked', 'Expired'):
                 if control.button('Revoke', key=f"revoke_{invitation['id']}"):
                     run_action(lambda iid=invitation['id']: svc.revoke_invitation(uid, iid), 'Invitation revoked.')
-    with links:
+    if section == 'Link accounts':
         if students and parents:
             with st.form('link_parent'):
                 sid = choose('Student', students, 'link_student', 'student_code')
@@ -276,7 +282,10 @@ def admin_panel(uid):
         st.subheader('Current links')
         st.dataframe(parent_links, hide_index=True)
         st.dataframe(teacher_links, hide_index=True)
-    with access:
+    if section == 'Account access':
+        if not users:
+            st.info('No matching account. Change your search.')
+            return
         target = choose('Account', users, 'account_target', 'username')
         with st.form('reset_password', clear_on_submit=True):
             new = st.text_input('New password (10+ characters)', type='password', max_chars=256)
@@ -289,6 +298,8 @@ def admin_panel(uid):
 
 
 def compose(uid, cid):
+    if not st.toggle('✏️ Write a diary entry', key=f'write_{cid}'):
+        return
     roster = svc.class_students(uid, cid)
     if not roster:
         st.info('Add active students before publishing.')
@@ -339,35 +350,40 @@ def show_entry(uid, entry, sid=None):
         st.text(entry['body'])
         st.caption(f"Posted: {entry['created_at'][:16].replace('T', ' ')} (Pakistan time)" +
                    (f" | Due / scheduled: {entry['due_date']}" if entry['due_date'] else ''))
+        count = entry['reply_count']
+        st.caption(f"💬 {count} replies · {entry['acknowledged_families']} families acknowledged")
         if sid is not None:
-            seen = svc.receipts(uid, eid, sid)
-            already_seen = any(r['parent_id']==uid for r in seen)
+            already_seen = entry['acknowledged_by_me']
             if st.button('✓ Acknowledged' if already_seen else '✓ Acknowledge',
                          key=f'ack_{eid}_{sid}', disabled=already_seen):
                 run_action(lambda: svc.acknowledge(uid, eid, sid), 'Acknowledgement saved.')
-            receipts_view(seen)
-            count = svc.reply_count(uid, eid, sid)
-            with st.expander(f'💬 Family conversation · {count} replies'):
-                st.caption('Shared with your child’s linked guardians and the school.')
-                comments_view(svc.thread(uid, eid, sid))
-                reply_form(uid, eid, sid)
-        else:
-            families = svc.feed_conversations(uid, eid)
-            count = sum(len(f['replies']) for f in families)
-            acknowledged = sum(bool(f['receipts']) for f in families)
-            st.caption(f"{len(families)} students · {acknowledged} families acknowledged")
-            with st.expander(f'💬 Family conversations · {count} replies'):
-                st.caption('Staff view: all family threads. Each family can see only its own child’s thread.')
-                for family in families:
-                    child = family['student']
-                    st.markdown('**'+student_label(child)+'**')
-                    receipts_view(family['receipts'])
-                    comments_view(family['replies'])
-                    if child['archived']:
-                        st.caption('Archived student — conversation is read-only.')
+        if st.toggle(f'Open conversation · {count} replies', key=f'open_{eid}_{sid}'):
+            st.caption('Guardians of the same child share a thread. Staff can see every family.')
+            cursor_key = f'comments_cursor_{eid}_{sid}'
+            before = st.session_state.get(cursor_key)
+            comments, more, cursor = svc.conversation_page(uid,eid,sid,before)
+            for comment in comments:
+                if sid is None:
+                    st.caption(f"{comment['child_name']} · {comment['student_code']}")
+                comments_view([comment])
+            if more and st.button('Older replies',key=f'older_{eid}_{sid}'):
+                st.session_state[cursor_key] = cursor
+                st.rerun()
+            if before is not None and st.button('Latest replies',key=f'latest_{eid}_{sid}'):
+                st.session_state.pop(cursor_key,None)
+                st.rerun()
+            if sid is not None:
+                receipts_view(svc.receipts(uid,eid,sid))
+                reply_form(uid,eid,sid)
+            else:
+                roster = svc.entry_roster(uid,eid)
+                if roster:
+                    selected = choose('Reply / acknowledgements for child',roster,f'family_{eid}','student_code')
+                    receipts_view(svc.receipts(uid,eid,selected))
+                    if next(s['archived'] for s in roster if s['id']==selected):
+                        st.caption('Archived student — read-only.')
                     else:
-                        reply_form(uid, eid, child['id'])
-                    st.divider()
+                        reply_form(uid,eid,selected)
 
 
 def diary_panel(uid, role):
@@ -392,31 +408,74 @@ def diary_panel(uid, role):
         if not next(c['archived'] for c in classes if c['id']==cid):
             compose(uid, cid)
     st.subheader('Diary feed')
-    mode = st.radio('View entries', ['Today', 'Choose a date', 'Date range'], horizontal=True)
-    if mode=='Today':
-        start_date = end_date = svc.today()
-    else:
-        counts = svc.diary_days(uid, student_id=sid, class_id=cid)
-        context = f'{uid}_child_{sid}' if parent else f'{uid}_class_{cid}'
-        dates = date_calendar(counts, svc.today(), key=f'diary_calendar_{context}_{mode}',
-                              is_range=mode=='Date range')
+    controls, feed = st.columns([1, 2.4],gap='large')
+    with controls:
+        st.subheader('Calendar & filters')
+        mode = st.radio('Selection', ['Single day', 'Date range'], horizontal=True)
+        context = f'{uid}_{sid}_{cid}_{mode}'
+        def month_counts(year, month):
+            # Session-only, short-lived cache. Always recheck authorization first.
+            svc._diary_scope(uid,sid,cid)
+            cache = st.session_state.setdefault('month_counts',{})
+            key = (uid,sid,cid,year,month)
+            item = cache.get(key)
+            if item is None or time.time()-item[0]>30:
+                item = (time.time(),svc.diary_days(uid,sid,cid,date(year,month,1)))
+                if len(cache)>12:
+                    cache.clear()
+                cache[key] = item
+            return item[1]
+        dates = date_calendar(month_counts,svc.today(),key=f'diary_calendar_{context}',is_range=mode=='Date range')
+        with st.form('feed_filters'):
+            kind = st.selectbox('Type filter', ['All']+list(svc.KINDS))
+            search = st.text_input('Search selected dates',max_chars=160)
+            st.form_submit_button('Apply filters')
+        if st.button('Refresh diary'):
+            st.session_state.pop('month_counts',None)
+            st.rerun()
+    with feed:
         if dates is None:
             st.info('Choose an end date to display the diary feed.')
             return
-        start_date, end_date = dates
-    period = (f'{start_date:%d %B %Y}' if start_date==end_date else
-              f'{start_date:%d %B %Y} to {end_date:%d %B %Y} (both dates included)')
-    st.caption(f'Entries posted: {period} · Pakistan time. Replies and acknowledgements include all dates.')
-    entries = svc.diary(uid, student_id=sid, class_id=cid, on_date=start_date, end_date=end_date)
-    col1, col2 = st.columns([1, 2])
-    kind = col1.selectbox('Type filter', ['All']+list(svc.KINDS))
-    search = col2.text_input('Search selected dates')
-    entries = [e for e in entries if (kind=='All' or e['kind']==kind) and
-               search.casefold() in (e['title']+' '+e['body']+' '+e['subject']).casefold()]
-    if not entries:
-        st.info('No matching entries for these dates. Choose another day or date range.')
-    for entry in entries:
-        show_entry(uid, entry, sid)
+        start_date,end_date = dates
+        st.caption(f'{start_date:%d %b %Y} → {end_date:%d %b %Y} · Pakistan time')
+        signature = (uid,sid,cid,start_date,end_date,kind,search)
+        if st.session_state.get('feed_signature') != signature:
+            st.session_state.feed_signature = signature
+            st.session_state.feed_page = 0
+        page = st.session_state.get('feed_page',0)
+        entries,more = svc.feed_page(uid,sid,cid,start_date,end_date,page,kind,search)
+        if not entries:
+            st.info('No matching entries for these dates.')
+        for entry in entries:
+            show_entry(uid,entry,sid)
+        prev,next_col = st.columns(2)
+        if prev.button('Newer posts',disabled=page==0):
+            st.session_state.feed_page = page-1
+            st.rerun()
+        if next_col.button('Older posts',disabled=not more):
+            st.session_state.feed_page = page+1
+            st.rerun()
+        st.caption(f'Page {page+1} · Up to 10 posts')
+
+
+def activity_panel(uid):
+    st.subheader('Activity Log')
+    st.caption('Recent school activity · Refresh for updates · Pakistan time')
+    before = st.session_state.get('activity_before')
+    rows = svc.activity(uid,before)
+    with st.container(border=True,height=420):
+        if not rows:
+            st.info('New activity will appear here after this update.')
+        for row in rows[:50]:
+            st.text(f"{row['created_at'][:16].replace('T',' ')}  |  {row['actor_name']}  |  {row['action']}")
+    a,b = st.columns(2)
+    if a.button('Refresh / latest activity'):
+        st.session_state.pop('activity_before',None)
+        st.rerun()
+    if b.button('Older activity',disabled=len(rows)<=50):
+        st.session_state.activity_before = rows[49]['id']
+        st.rerun()
 
 
 def main():

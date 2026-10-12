@@ -4,7 +4,10 @@ import hmac
 import re
 import secrets
 import time
-from datetime import datetime, date
+import os
+import logging
+from functools import wraps
+from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
@@ -116,18 +119,29 @@ def create_user(uid, name, username, role, password, cnic=''):
     return _create_user(name, username, role, password)
 
 
-def directory(uid):
-    actor(uid, ('admin',))
-    return query('SELECT id,username,name,role,active FROM users ORDER BY role,name')
+def _page_sql(limit, offset):
+    return ('' if limit is None else ' LIMIT :page_limit OFFSET :page_offset'), dict(
+        page_limit=max(1,min(int(limit or 100),101)),page_offset=max(0,int(offset)))
 
 
-def all_students(uid, include_archived=False):
+def directory(uid, limit=None, offset=0, search=''):
     actor(uid, ('admin',))
-    return query('''SELECT s.*,c.name AS class_name,
+    suffix, params = _page_sql(limit,offset)
+    return query("""SELECT id,username,name,role,active FROM users
+        WHERE LOWER(name) LIKE :q OR LOWER(username) LIKE :q ORDER BY role,name,id"""+suffix,
+        q='%'+search.lower().strip()[:120]+'%',**params)
+
+
+def all_students(uid, include_archived=False, limit=None, offset=0, search=''):
+    actor(uid, ('admin',))
+    suffix, params = _page_sql(limit,offset)
+    return query("""SELECT s.*,c.name AS class_name,
         CASE WHEN a.student_id IS NULL THEN 0 ELSE 1 END AS archived
         FROM students s JOIN classes c ON c.id=s.class_id
-        LEFT JOIN student_archives a ON a.student_id=s.id'''
-        + ('' if include_archived else ' WHERE a.student_id IS NULL') + ' ORDER BY s.name')
+        LEFT JOIN student_archives a ON a.student_id=s.id
+        WHERE (LOWER(s.name) LIKE :q OR LOWER(s.student_code) LIKE :q)"""
+        + ('' if include_archived else ' AND a.student_id IS NULL') + ' ORDER BY s.name,s.id'+suffix,
+        q='%'+search.lower().strip()[:120]+'%',**params)
 
 
 def allowed_classes(uid, include_archived=False):
@@ -142,7 +156,13 @@ def allowed_classes(uid, include_archived=False):
 
 
 def _class_access(uid, class_id, include_archived=True):
-    if class_id not in [c['id'] for c in allowed_classes(uid, include_archived)]:
+    user = actor(uid, ('admin','teacher'))
+    sql = 'SELECT c.id FROM classes c WHERE c.id=:c'
+    if user['role']=='teacher':
+        sql += ' AND EXISTS (SELECT 1 FROM teacher_classes t WHERE t.teacher_id=:u AND t.class_id=c.id)'
+    if not include_archived:
+        sql += ' AND NOT EXISTS (SELECT 1 FROM class_archives a WHERE a.class_id=c.id)'
+    if not query(sql,c=class_id,u=uid):
         raise PermissionError('Class is not available to you.')
 
 
@@ -184,21 +204,54 @@ def add_student(uid, code, name, class_id):
                    c=required(code, 40), n=required(name, 120), cl=class_id)
 
 
+def invitation_secret():
+    value = os.getenv('SCHOOL_DIARY_INVITATION_SECRET', '')
+    if not value:
+        import streamlit as st
+        try:
+            value = st.secrets.get('security', {}).get('invitation_secret', '')
+        except (FileNotFoundError, KeyError):
+            pass
+    if not isinstance(value, str) or len(value) < 32:
+        raise ValueError('Administrator: configure security.invitation_secret in Streamlit Secrets (32+ random characters).')
+    return value.encode()
+
+
+def _mac(label, value):
+    return hmac.new(invitation_secret(), (label+'\0'+value).encode(), hashlib.sha256).hexdigest()
+
+
 def _invite_values(uid, guardian_name, cnic):
-    code = secrets.token_urlsafe(24)  # 192-bit, single-use secret; never stored as plain text.
-    return code, dict(h=hashlib.sha256(code.encode()).hexdigest(),
-                     cn=digest(cnic_digits(cnic)), n=required(guardian_name, 120),
-                     u=uid, at=now(), expiry=int(time.time())+7*86400)
+    digits = cnic_digits(cnic)
+    code = f'{secrets.randbelow(1000000):06d}'
+    return code, dict(h=_mac('code', digits+'|'+code), guardian_key=_mac('guardian', digits),
+                     cn=digest(digits), n=required(guardian_name, 120),
+                     u=uid, at=now(), expiry=int(time.time())+86400)
 
 
 def _insert_invite(conn, values, student_ids):
-    result = conn.execute(text('''INSERT INTO guardian_invitations
+    key = values['guardian_key']
+    # Unique guardian key serializes concurrent generation and redemption.
+    insert = ('INSERT IGNORE' if engine.dialect.name=='mysql' else 'INSERT OR IGNORE')
+    conn.execute(text(insert+' INTO invitation_keys(guardian_key) VALUES(:g)'), dict(g=key))
+    conn.execute(text('UPDATE invitation_keys SET attempts=attempts WHERE guardian_key=:g'), dict(g=key))
+    old = conn.execute(text('SELECT invitation_id FROM invitation_keys WHERE guardian_key=:g'), dict(g=key)).scalar()
+    if old:
+        conn.execute(text('UPDATE guardian_invitations SET revoked=1 WHERE id=:i AND used_at IS NULL'), dict(i=old))
+    # Store an HMAC with a per-issue nonce, so even a repeated six-digit draw cannot
+    # violate the legacy unique column. The nonce is the creation random value.
+    nonce = secrets.token_hex(16)
+    values = dict(values, h=hashlib.sha256((values['h']+nonce).encode()).hexdigest())
+    result = conn.execute(text("""INSERT INTO guardian_invitations
         (code_hash,cnic_hash,guardian_name,created_by,created_at,expires_at)
-        VALUES(:h,:cn,:n,:u,:at,:expiry)'''), values)
+        VALUES(:h,:cn,:n,:u,:at,:expiry)"""), values)
     iid = result.lastrowid
+    # Separate metadata preserves compatibility with old, still-valid invitations.
+    conn.execute(text('INSERT INTO invitation_proofs(invitation_id,nonce,proof) VALUES(:i,:n,:p)'),
+                 dict(i=iid,n=nonce,p=values['h']))
+    conn.execute(text('UPDATE invitation_keys SET invitation_id=:i WHERE guardian_key=:g'),dict(i=iid,g=key))
     for sid in student_ids:
-        conn.execute(text('INSERT INTO invitation_students(invitation_id,student_id) VALUES(:i,:s)'),
-                     dict(i=iid, s=sid))
+        conn.execute(text('INSERT INTO invitation_students(invitation_id,student_id) VALUES(:i,:s)'),dict(i=iid,s=sid))
     return iid
 
 
@@ -235,12 +288,12 @@ def create_invitation(uid, student_ids, guardian_name, cnic):
     return code
 
 
-def invitations(uid):
+def invitations(uid, offset=0, limit=20):
     actor(uid, ('admin',))
     rows = query('''SELECT id,guardian_name,created_at,expires_at,used_by,revoked,failures
-                    FROM guardian_invitations ORDER BY id DESC''')
+                    FROM guardian_invitations ORDER BY id DESC LIMIT :n OFFSET :o''', n=min(int(limit),51),o=max(0,int(offset)))
     links = query('''SELECT i.invitation_id,s.student_code FROM invitation_students i
-                    JOIN students s ON s.id=i.student_id ORDER BY s.student_code''')
+                    JOIN students s ON s.id=i.student_id WHERE i.invitation_id>=:lo AND i.invitation_id<=:hi ORDER BY s.student_code''', lo=min((r['id'] for r in rows),default=0),hi=max((r['id'] for r in rows),default=0))
     for r in rows:
         r['students'] = ', '.join(x['student_code'] for x in links if x['invitation_id'] == r['id'])
         r['status'] = ('Used' if r['used_by'] else 'Revoked' if r['revoked'] else
@@ -263,9 +316,30 @@ def register_parent(username, password, cnic, invitation_code):
     code = invitation_code.strip()
     if len(code) > 100:
         raise ValueError('Invitation details are invalid or expired. Contact the school.')
-    code_hash = hashlib.sha256(code.encode()).hexdigest()
-    rows = query('SELECT * FROM guardian_invitations WHERE code_hash=:h', h=code_hash)
     message = 'Invitation details are invalid, used, locked or expired. Contact the school.'
+    _registration_limit()
+    if re.fullmatch(r'[0-9]{6}', code):
+        key = _mac('guardian', cnic.strip())
+        with engine.begin() as conn:
+            conn.execute(text("""UPDATE invitation_keys SET attempts=0,window_start=:t
+                WHERE guardian_key=:g AND window_start<=:old"""),
+                dict(t=int(time.time()),old=int(time.time())-900,g=key))
+            budget = conn.execute(text("""UPDATE invitation_keys SET attempts=attempts+1
+                WHERE guardian_key=:g AND attempts<5"""),dict(g=key))
+            rows = []
+            if budget.rowcount==1:
+                rows = [dict(r) for r in conn.execute(text("""SELECT i.*,p.nonce FROM invitation_keys k
+                    JOIN guardian_invitations i ON i.id=k.invitation_id
+                    JOIN invitation_proofs p ON p.invitation_id=i.id WHERE k.guardian_key=:g"""),dict(g=key)).mappings()]
+                if rows:
+                    expected = hashlib.sha256((_mac('code',cnic.strip()+'|'+code)+rows[0]['nonce']).encode()).hexdigest()
+                    if not hmac.compare_digest(expected, rows[0]['code_hash']):
+                        conn.execute(text('UPDATE guardian_invitations SET failures=failures+1 WHERE id=:i'),dict(i=rows[0]['id']))
+                        rows = []
+    else:
+        # Previously printed long invitations remain usable until their original expiry.
+        code_hash = hashlib.sha256(code.encode()).hexdigest()
+        rows = query('SELECT * FROM guardian_invitations WHERE code_hash=:h', h=code_hash)
     if not rows:
         raise ValueError(message)
     invitation = rows[0]
@@ -373,27 +447,43 @@ def _diary_scope(uid, student_id, class_id):
     return condition, dict(c=class_id, s=student_id)
 
 
-def diary_days(uid, student_id=None, class_id=None):
+def diary_days(uid, student_id=None, class_id=None, month=None):
     """Counts of accessible posts by posting day, never other families' entries."""
     condition, params = _diary_scope(uid, student_id, class_id)
+    if month is not None:
+        start = date.fromisoformat(str(month)).replace(day=1)
+        end = (start.replace(day=28)+timedelta(days=4)).replace(day=1)
+        condition += ' AND e.created_at>=:start AND e.created_at<:end'
+        params.update(start=start.isoformat(), end=end.isoformat())
     rows = query("""SELECT SUBSTR(e.created_at,1,10) AS day,COUNT(*) AS count
         FROM entries e WHERE """ + condition +
         ' GROUP BY SUBSTR(e.created_at,1,10) ORDER BY day', **params)
     return {r['day']: r['count'] for r in rows}
 
 
-def diary(uid, student_id=None, class_id=None, on_date=None, end_date=None):
+def diary(uid, student_id=None, class_id=None, on_date=None, end_date=None, limit=None, offset=0, kind="All", search=""):
     start = today() if on_date is None else date.fromisoformat(str(on_date))
     end = start if end_date is None else date.fromisoformat(str(end_date))
     if end < start:
         raise ValueError('The end date must be on or after the start date.')
     condition, params = _diary_scope(uid, student_id, class_id)
+    if kind != 'All':
+        if kind not in KINDS:
+            raise ValueError('Invalid diary type.')
+        condition += ' AND e.kind=:kind'
+        params['kind'] = kind
+    if search.strip():
+        condition += " AND (LOWER(e.title) LIKE :search OR LOWER(e.body) LIKE :search OR LOWER(e.subject) LIKE :search)"
+        params['search'] = '%'+search.strip().lower()[:160]+'%'
     sql = """SELECT e.*,u.name AS teacher_name,a.scope AS audience_scope
         FROM entries e JOIN users u ON u.id=e.author_id
         LEFT JOIN entry_audiences a ON a.entry_id=e.id WHERE """ + condition + """
-        AND SUBSTR(e.created_at,1,10) BETWEEN :start AND :end
+        AND e.created_at>=:start AND e.created_at<:end
         ORDER BY e.created_at DESC,e.id DESC"""
-    return query(sql, **params, start=start.isoformat(), end=end.isoformat())
+    if limit is not None:
+        sql += ' LIMIT :limit OFFSET :offset'
+        params.update(limit=max(1,min(int(limit),51)), offset=max(0,int(offset)))
+    return query(sql, **params, start=start.isoformat(), end=(end+timedelta(days=1)).isoformat())
 
 
 def _entry(uid, entry_id):
@@ -590,3 +680,110 @@ def restore_record(uid, kind, target_id):
         execute('DELETE FROM class_archives WHERE class_id=:i', i=target_id)
     else:
         raise ValueError('Unknown archive type.')
+
+
+def _registration_limit():
+    """Persistent global backstop; per-guardian budget survives reissuing vouchers."""
+    timestamp = int(time.time())
+    with engine.begin() as conn:
+        insert = 'INSERT IGNORE' if engine.dialect.name=='mysql' else 'INSERT OR IGNORE'
+        conn.execute(text(insert+' INTO registration_gate(id) VALUES(1)'))
+        conn.execute(text('UPDATE registration_gate SET attempts=0,window_start=:t WHERE id=1 AND window_start<=:old'),
+                     dict(t=timestamp,old=timestamp-60))
+        accepted = conn.execute(text('UPDATE registration_gate SET attempts=attempts+1 WHERE id=1 AND attempts<30')).rowcount
+    if accepted != 1:
+        raise ValueError('Registration is busy. Please wait one minute and try again.')
+
+
+def feed_page(uid, student_id=None, class_id=None, on_date=None, end_date=None,
+              page=0, kind='All', search=''):
+    """Three data queries for ten posts, regardless of the number of conversations."""
+    rows = diary(uid, student_id, class_id, on_date, end_date, limit=11,
+                 offset=max(0,int(page))*10,kind=kind,search=search)
+    more, rows = len(rows)>10, rows[:10]
+    if not rows:
+        return rows, more
+    # IDs came from the authorized feed, never the caller. All values are bound.
+    binds = {f'e{i}':r['id'] for i,r in enumerate(rows)}
+    placeholders = ','.join(':'+k for k in binds)
+    family = '' if student_id is None else ' AND student_id=:s'
+    params = dict(binds, s=student_id, u=uid)
+    comments = query(f'''SELECT entry_id,COUNT(*) AS n FROM replies
+        WHERE entry_id IN ({placeholders}){family} GROUP BY entry_id''', **params)
+    seen = query(f'''SELECT entry_id,COUNT(DISTINCT student_id) AS families,
+        MAX(CASE WHEN parent_id=:u THEN 1 ELSE 0 END) AS mine
+        FROM acknowledgements WHERE entry_id IN ({placeholders}){family} GROUP BY entry_id''', **params)
+    counts = {r['entry_id']:r['n'] for r in comments}
+    receipts = {r['entry_id']:r for r in seen}
+    for row in rows:
+        row['reply_count'] = counts.get(row['id'],0)
+        row['acknowledged_families'] = receipts.get(row['id'],{}).get('families',0)
+        row['acknowledged_by_me'] = bool(receipts.get(row['id'],{}).get('mine',0))
+    return rows, more
+
+
+def conversation_page(uid, entry_id, student_id=None, before=None):
+    """Staff see all families together; parents see their child's shared thread only."""
+    if student_id is None:
+        _entry(uid, entry_id)
+    else:
+        entry_access(uid, entry_id, student_id)
+    condition = 'r.entry_id=:e'
+    if student_id is not None:
+        condition += ' AND r.student_id=:s'
+    if before is not None:
+        condition += ' AND r.id<:before'
+    rows = query('''SELECT r.*,u.name,u.role,s.name AS child_name,s.student_code
+        FROM replies r JOIN users u ON u.id=r.author_id JOIN students s ON s.id=r.student_id
+        WHERE '''+condition+' ORDER BY r.id DESC LIMIT 31', e=entry_id,s=student_id,before=before)
+    more,rows = len(rows)>30,rows[:30]
+    cursor = rows[-1]['id'] if rows else None
+    return list(reversed(rows)),more,cursor
+
+
+def activity(uid, before=None):
+    actor(uid, ('admin',))
+    return query('SELECT * FROM activity_log '+('WHERE id<:b ' if before is not None else '')+
+                 'ORDER BY id DESC LIMIT 51',b=before)
+
+
+def _audit(uid, action):
+    """Operational log, best effort: logging failures cannot repeat a saved mutation.
+
+    No passwords, invitation codes, CNIC, message bodies, IPs or locations.
+    """
+    try:
+        rows = query('SELECT name FROM users WHERE id=:u',u=uid)
+        execute('INSERT INTO activity_log(actor_id,actor_name,action,created_at) VALUES(:u,:n,:a,:t)',
+                u=uid,n=rows[0]['name'] if rows else 'School user',a=action,t=now())
+    except Exception:
+        logging.getLogger(__name__).warning('Activity log write failed.')
+
+
+def _logged(function, action, returned_user=False):
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        result = function(*args, **kwargs)
+        if returned_user:
+            if result is not None:
+                _audit(result['id'] if isinstance(result,dict) else result,action)
+        else:
+            _audit(args[0] if args else kwargs['uid'],action)
+        return result
+    return wrapped
+
+
+# Decorators keep the existing service signatures and permission checks intact.
+for _name,_label in {
+    'create_user':'Created staff account','add_class':'Added class','add_student':'Added student',
+    'enroll_student':'Enrolled student','create_invitation':'Generated guardian invitation',
+    'revoke_invitation':'Revoked invitation','link_parent':'Linked guardian to student',
+    'assign_teacher':'Assigned teacher to class','create_entry':'Published diary entry',
+    'acknowledge':'Acknowledged diary entry','reply':'Added family reply',
+    'reset_password':'Reset account password','change_password':'Changed own password',
+    'set_active':'Changed account status','remove_record':'Removed or archived record',
+    'restore_record':'Restored archived record',
+}.items():
+    globals()[_name] = _logged(globals()[_name],_label)
+login = _logged(login,'Signed in',returned_user=True)
+register_parent = _logged(register_parent,'Registered parent account',returned_user=True)

@@ -7,7 +7,7 @@ import streamlit as st
 
 from sqlalchemy import (
     create_engine, event, MetaData, Table, Column, Integer,
-    String, Text, ForeignKey, CheckConstraint, text
+    String, Text, ForeignKey, CheckConstraint, Index, text
 )
 from sqlalchemy.engine import URL
 
@@ -125,12 +125,46 @@ entry_students = Table('entry_students', metadata,
     Column('student_id', Integer, ForeignKey('students.id'), primary_key=True))
 
 
+# No existing columns are changed. The HMAC key lives only in server Secrets.
+invitation_keys = Table('invitation_keys', metadata,
+    Column('guardian_key', String(64), primary_key=True),
+    Column('invitation_id', Integer, ForeignKey('guardian_invitations.id')),
+    Column('attempts', Integer, nullable=False, server_default='0'),
+    Column('window_start', Integer, nullable=False, server_default='0'))
+invitation_proofs = Table('invitation_proofs', metadata,
+    Column('invitation_id', Integer, ForeignKey('guardian_invitations.id'), primary_key=True),
+    Column('nonce', String(32), nullable=False), Column('proof', String(64), nullable=False))
+registration_gate = Table('registration_gate', metadata,
+    Column('id', Integer, primary_key=True),
+    Column('attempts', Integer, nullable=False, server_default='0'),
+    Column('window_start', Integer, nullable=False, server_default='0'))
+activity_log = Table('activity_log', metadata,
+    Column('id', Integer, primary_key=True),
+    # A snapshot, not an FK: removal must not erase or block historical activity.
+    Column('actor_id', Integer), Column('actor_name', String(120), nullable=False),
+    Column('action', String(80), nullable=False), Column('created_at', String(25), nullable=False))
+UPGRADE_INDEXES = [
+    Index('ix_diary_class_date_id', entries.c.class_id, entries.c.created_at, entries.c.id),
+    Index('ix_diary_reply_family', replies.c.entry_id, replies.c.student_id, replies.c.id),
+    Index('ix_diary_parent_children', student_parents.c.parent_id, student_parents.c.student_id),
+    Index('ix_diary_student_invites', invitation_students.c.student_id, invitation_students.c.invitation_id),
+    Index('ix_diary_class_roster', students.c.class_id, students.c.name),
+    Index('ix_diary_activity_date', activity_log.c.created_at),
+]
+
+
 def init_db():
     """Create missing tables once per process. Never drop, clear, or reseed data."""
     global _schema_ready
     with _schema_lock:
         if not _schema_ready:
             metadata.create_all(engine)
+            # create_all skips indexes on pre-existing tables: explicitly upgrade them.
+            for index in UPGRADE_INDEXES:
+                index.create(engine, checkfirst=True)
+            with engine.begin() as conn:
+                if not conn.execute(text('SELECT id FROM registration_gate WHERE id=1')).first():
+                    conn.execute(text('INSERT INTO registration_gate(id) VALUES(1)'))
             _schema_ready = True
 
 

@@ -54,8 +54,8 @@ def date_calendar(day_counts, today, key, is_range=False):
     state = st.session_state[key]
     start, end = state['start'], state['end']
     st.caption('Posting date range' if is_range else 'Posting date')
-    # A stable popover label keeps it open across range/month selection reruns.
-    with st.popover('📅 Open diary calendar', **stretch(st.popover)):
+    # Inline calendar: navigation fetches only the newly visible month.
+    with st.container(border=True):
         st.markdown('<span class="diary-calendar-marker"></span>', unsafe_allow_html=True)
         st.caption('Pick a start date, then an end date.' if is_range else 'Pick a day to view its diary.')
         prev, month_col, year_col, nxt = st.columns([1, 3, 2, 1])
@@ -70,7 +70,9 @@ def date_calendar(day_counts, today, key, is_range=False):
         with nxt:
             st.button('›', key=key+'_next', help='Next month', on_click=move_month, args=(key,1),
                       disabled=year==2100 and month==12)
-        for col, weekday in zip(st.columns(7), ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']):
+        if callable(day_counts):
+            day_counts = day_counts(year, month)
+        for col, weekday in zip(st.columns(7), ['M','T','W','T','F','S','S']):
             col.caption(weekday)
         for week in calendar.Calendar(firstweekday=0).monthdayscalendar(year,month):
             for col, day in zip(st.columns(7),week):
