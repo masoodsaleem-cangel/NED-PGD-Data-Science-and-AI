@@ -143,6 +143,10 @@ activity_log = Table('activity_log', metadata,
     # A snapshot, not an FK: removal must not erase or block historical activity.
     Column('actor_id', Integer), Column('actor_name', String(120), nullable=False),
     Column('action', String(80), nullable=False), Column('created_at', String(25), nullable=False))
+# UI read state: no FKs so historical indicators never block existing deletions.
+reply_views = Table('reply_views', metadata,
+    Column('user_id', Integer, primary_key=True),
+    Column('reply_id', Integer, primary_key=True))
 UPGRADE_INDEXES = [
     Index('ix_diary_class_date_id', entries.c.class_id, entries.c.created_at, entries.c.id),
     Index('ix_diary_reply_family', replies.c.entry_id, replies.c.student_id, replies.c.id),
@@ -176,3 +180,4 @@ def query(sql, **params):
 def execute(sql, **params):
     with engine.begin() as conn:
         return conn.execute(text(sql), params).lastrowid
+

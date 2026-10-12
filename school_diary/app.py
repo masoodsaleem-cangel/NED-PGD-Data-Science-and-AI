@@ -1,13 +1,14 @@
 """Run: python -m streamlit run app.py"""
 import time
 import hashlib
+import html
 from datetime import datetime, date
 import streamlit as st
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 import service as svc
 from db import init_db
 from portal_message import render_welcome, message_editor
-from diary_calendar import date_calendar, stretch
+from diary_calendar import stretch
 
 st.set_page_config(page_title='School Diary', page_icon='📖', layout='wide')
 st.markdown('''<style>
@@ -15,6 +16,17 @@ st.markdown('''<style>
 [data-testid="stVerticalBlockBorderWrapper"] {border-radius:14px;}
 /* Keep dialogs inside small screens; long messages scroll inside the dialog. */
 [role="dialog"] {max-width:calc(100vw - 24px) !important;max-height:90dvh;overflow-y:auto;}
+/* Limit strong borders to feed cards and reply cards. */
+[class*="st-key-feed_card_"] {border:3px solid #68408A !important;border-radius:14px;padding:16px;}
+[class*="st-key-reply_card_"] {border:3px solid #68408A !important;border-radius:12px;padding:8px;}
+[class*="st-key-reply_indicator_"] button {border:0;background:transparent;padding:0;min-height:28px;}
+[class*="st-key-reply_indicator_"] button p {font-size:0.8rem;}
+[class*="st-key-reply_indicator_new_"] button,
+[class*="st-key-reply_indicator_new_"] button p,
+[class*="st-key-reply_indicator_new_"] button span {color:#16803c !important;}
+.st-key-feed_toolbar [data-testid="stHorizontalBlock"] {flex-wrap:nowrap;gap:8px;}
+.st-key-feed_toolbar [data-testid="stColumn"] {min-width:0 !important;}
+.st-key-feed_toolbar {max-width:170px;}
 </style>''', unsafe_allow_html=True)
 
 
@@ -94,6 +106,7 @@ def show_invitation_code():
     code = st.session_state.get('invitation_code')
     if code:
         st.success('Invitation created. Copy this code and share it privately with the intended guardian.')
+        st.markdown("<div style='color:#c62828;font-size:0.8rem;font-weight:600'>Parent's Invitation Code [Confidential]</div>",unsafe_allow_html=True)
         st.code(code, language=None)
         st.caption('Valid for 24 hours and one registration. The school does not need to choose a parent password.')
         st.download_button('Download invitation slip',
@@ -253,7 +266,10 @@ def admin_panel(uid):
         for invitation in svc.invitations(uid, offset=(invite_page-1)*20):
             row, control = st.columns([10, 2])
             expiry = datetime.fromtimestamp(invitation['expires_at'], svc.KARACHI).strftime('%d %b %Y, %H:%M')
-            row.write(f"{invitation['guardian_name']} · {invitation['students']} · {invitation['status']}")
+            status=invitation['status']
+            color={'Pending':'#c62828','Used':'#16803c'}.get(status,'inherit')
+            row.markdown(f"{html.escape(invitation['guardian_name'])} · {html.escape(invitation['students'])} · "
+                         f"<span style='color:{color}'>{html.escape(status)}</span>",unsafe_allow_html=True)
             row.caption(f"Invitation #{invitation['id']} · Expires {expiry} (Pakistan time)")
             if invitation['status'] in ('Pending', 'Locked', 'Expired'):
                 if control.button('Revoke', key=f"revoke_{invitation['id']}"):
@@ -315,9 +331,10 @@ def compose(uid, cid):
 
 def comments_view(comments):
     for comment in comments:
-        with st.chat_message('user' if comment['role']=='parent' else 'assistant'):
-            st.caption(f"{comment['name']} · {comment['role']} · {comment['created_at'][:16].replace('T', ' ')}")
-            st.text(comment['body'])
+        with st.container(key=f"reply_card_{comment['id']}"):
+            with st.chat_message('user' if comment['role']=='parent' else 'assistant'):
+                st.caption(f"{comment['name']} · {comment['role']} · {comment['created_at'][:16].replace('T', ' ')}")
+                st.text(comment['body'])
 
 
 def receipts_view(receipts):
@@ -337,20 +354,26 @@ def reply_form(uid, eid, sid):
 
 def show_entry(uid, entry, sid=None):
     eid = entry['id']
-    with st.container(border=True):
+    with st.container(key=f'feed_card_{eid}_{sid}'):
         st.caption(f"{entry['kind']} · {entry['subject']} · {entry['teacher_name']}")
         st.subheader(entry['title'])
         st.text(entry['body'])
         st.caption(f"Posted: {entry['created_at'][:16].replace('T', ' ')} (Pakistan time)" +
                    (f" | Due / scheduled: {entry['due_date']}" if entry['due_date'] else ''))
         count = entry['reply_count']
-        st.caption(f"💬 {count} replies · {entry['acknowledged_families']} families acknowledged")
+        unread=entry.get('unread_reply_count',0)
+        opened_key=f'thread_open_{eid}_{sid}'
+        with st.container(key=f"reply_indicator_{'new' if unread else 'seen'}_{eid}_{sid}"):
+            if st.button(f'{count} replies',icon=':material/chat_bubble_outline:',key=f'replies_{eid}_{sid}',
+                         help=f'{unread} unseen replies' if unread else 'Show or hide replies'):
+                st.session_state[opened_key]=not st.session_state.get(opened_key,False)
+        st.caption(f"{entry['acknowledged_families']} families acknowledged")
         if sid is not None:
             already_seen = entry['acknowledged_by_me']
             if st.button('✓ Acknowledged' if already_seen else '✓ Acknowledge',
                          key=f'ack_{eid}_{sid}', disabled=already_seen):
                 run_action(lambda: svc.acknowledge(uid, eid, sid), 'Acknowledgement saved.')
-        if st.toggle(f'Open conversation · {count} replies', key=f'open_{eid}_{sid}'):
+        if st.session_state.get(opened_key,False):
             st.caption('Guardians of the same child share a thread. Staff can see every family.')
             cursor_key = f'comments_cursor_{eid}_{sid}'
             before = st.session_state.get(cursor_key)
@@ -359,6 +382,8 @@ def show_entry(uid, entry, sid=None):
                 if sid is None:
                     st.caption(f"{comment['child_name']} · {comment['student_code']}")
                 comments_view([comment])
+            if unread and svc.mark_replies_viewed(uid,eid,sid,[c['id'] for c in comments]):
+                st.rerun()
             if more and st.button('Older replies',key=f'older_{eid}_{sid}'):
                 st.session_state[cursor_key] = cursor
                 st.rerun()
@@ -400,33 +425,29 @@ def diary_panel(uid, role):
         cid = choose('Class', classes, 'diary_class')
         if not next(c['archived'] for c in classes if c['id']==cid):
             compose(uid, cid)
-    calendar_col, filters_col = st.columns([1, 1],gap='large')
-    with calendar_col:
-        mode = st.radio('Selection', ['Single day', 'Date range'], horizontal=True)
-        context = f'{uid}_{sid}_{cid}_{mode}'
-        def month_counts(year, month):
-            # Session-only, short-lived cache. Always recheck authorization first.
-            svc._diary_scope(uid,sid,cid)
-            cache = st.session_state.setdefault('month_counts',{})
-            key = (uid,sid,cid,year,month)
-            item = cache.get(key)
-            if item is None or time.time()-item[0]>30:
-                item = (time.time(),svc.diary_days(uid,sid,cid,date(year,month,1)))
-                if len(cache)>12:
-                    cache.clear()
-                cache[key] = item
-            return item[1]
-        dates = date_calendar(month_counts,svc.today(),key=f'diary_calendar_{context}',is_range=mode=='Date range')
-    with filters_col:
-        with st.form('feed_filters'):
-            kind = st.selectbox('Type filter', ['All']+list(svc.KINDS))
-            search = st.text_input('Search selected dates',max_chars=160)
-            st.form_submit_button('Apply filters')
-        if st.button('Refresh diary'):
-            st.session_state.pop('month_counts',None)
-            st.rerun()
+    with st.container(key='feed_toolbar'):
+        calendar_col,filters_col=st.columns(2)
+        with calendar_col:
+            with st.popover('',icon=':material/calendar_month:',help='Choose diary dates'):
+                mode=st.radio('Selection',['Single day','Date range'],horizontal=True)
+                context=f'{uid}_{sid}_{cid}_{mode}'
+                value=(svc.today(),svc.today()) if mode=='Date range' else svc.today()
+                selected_dates=st.date_input('Posting date',value=value,
+                    key=f'diary_dates_{context}',format='DD/MM/YYYY',
+                    min_value=date(1900,1,1),max_value=date(2100,12,31))
+                dates=(selected_dates,selected_dates) if isinstance(selected_dates,date) else (
+                    tuple(selected_dates) if len(selected_dates)==2 else None)
+        with filters_col:
+            with st.popover('',icon=':material/filter_alt:',help='Filter diary entries'):
+                with st.form('feed_filters'):
+                    kind=st.selectbox('Type filter',['All']+list(svc.KINDS))
+                    search=st.text_input('Search selected dates',max_chars=160)
+                    st.form_submit_button('Apply Filter')
+                if st.button('Refresh diary'):
+                    st.session_state.pop('month_counts',None)
+                    st.rerun()
     st.divider()
-    st.subheader('Diary Feed')
+    st.subheader(':material/menu_book: Diary Feed')
     if dates is None:
         st.info('Choose an end date to display the diary feed.')
         return
@@ -515,4 +536,5 @@ except SQLAlchemyError:
     st.error('The database is temporarily unavailable. Please refresh and try again.')
 except (ValueError, PermissionError) as exc:
     st.error(str(exc))
+
 

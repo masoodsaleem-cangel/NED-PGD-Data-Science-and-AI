@@ -708,15 +708,20 @@ def feed_page(uid, student_id=None, class_id=None, on_date=None, end_date=None,
     placeholders = ','.join(':'+k for k in binds)
     family = '' if student_id is None else ' AND student_id=:s'
     params = dict(binds, s=student_id, u=uid)
-    comments = query(f'''SELECT entry_id,COUNT(*) AS n FROM replies
+    comments = query(f'''SELECT entry_id,COUNT(*) AS n,
+        SUM(CASE WHEN author_id<>:u AND NOT EXISTS
+            (SELECT 1 FROM reply_views v WHERE v.user_id=:u AND v.reply_id=replies.id)
+            THEN 1 ELSE 0 END) AS unread FROM replies
         WHERE entry_id IN ({placeholders}){family} GROUP BY entry_id''', **params)
     seen = query(f'''SELECT entry_id,COUNT(DISTINCT student_id) AS families,
         MAX(CASE WHEN parent_id=:u THEN 1 ELSE 0 END) AS mine
         FROM acknowledgements WHERE entry_id IN ({placeholders}){family} GROUP BY entry_id''', **params)
     counts = {r['entry_id']:r['n'] for r in comments}
+    unread = {r['entry_id']:int(r['unread']) for r in comments}
     receipts = {r['entry_id']:r for r in seen}
     for row in rows:
         row['reply_count'] = counts.get(row['id'],0)
+        row['unread_reply_count'] = unread.get(row['id'],0)
         row['acknowledged_families'] = receipts.get(row['id'],{}).get('families',0)
         row['acknowledged_by_me'] = bool(receipts.get(row['id'],{}).get('mine',0))
     return rows, more
@@ -787,3 +792,25 @@ for _name,_label in {
     globals()[_name] = _logged(globals()[_name],_label)
 login = _logged(login,'Signed in',returned_user=True)
 register_parent = _logged(register_parent,'Registered parent account',returned_user=True)
+
+
+
+def mark_replies_viewed(uid, entry_id, student_id, reply_ids):
+    """Mark only the replies actually rendered, retaining family authorization."""
+    if student_id is None:
+        _entry(uid,entry_id)
+    else:
+        entry_access(uid,entry_id,student_id)
+    ids=sorted(set(int(i) for i in reply_ids))[:30]
+    if not ids:
+        return 0
+    params={f'r{i}':rid for i,rid in enumerate(ids)}
+    placeholders=','.join(':'+key for key in params)
+    params.update(u=uid,e=entry_id,s=student_id)
+    family='' if student_id is None else ' AND r.student_id=:s'
+    insert='INSERT IGNORE' if engine.dialect.name=='mysql' else 'INSERT OR IGNORE'
+    with engine.begin() as conn:
+        result=conn.execute(text(insert+f""" INTO reply_views(user_id,reply_id)
+            SELECT :u,r.id FROM replies r WHERE r.entry_id=:e
+            AND r.id IN ({placeholders}){family}"""),params)
+        return result.rowcount
