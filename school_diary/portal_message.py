@@ -142,8 +142,18 @@ def picture(popup=False):
 @st.dialog('\u00a0',width='small')
 def message_dialog(settings):
     st.html("""<style>
-[role="dialog"]:has(.welcome-bubble) {background:transparent !important;box-shadow:none !important;border:0 !important;}
+/* Streamlit versions differ: the painted panel may wrap the role=dialog node. */
+[data-testid="stDialog"]:has(.welcome-bubble) > div,
+[data-testid="stDialog"]:has(.welcome-bubble) [role="dialog"],
+[role="dialog"]:has(.welcome-bubble) {
+    background:transparent !important;
+    box-shadow:none !important;
+    border:0 !important;
+}
+/* Keep the bubble, illustration and dismissal controls fully opaque. */
+[role="dialog"]:has(.welcome-bubble) [slot="title"],
 [role="dialog"]:has(.welcome-bubble) h2 {display:none;}
+
 .welcome-bubble {position:relative;background:#fff;color:#252033;border:2px solid #68408A;
     border-radius:24px;padding:18px 20px;margin:0 0 18px;white-space:pre-wrap;overflow-wrap:anywhere;}
 .welcome-bubble:after {content:'';position:absolute;bottom:-12px;left:35px;width:20px;height:20px;
@@ -193,5 +203,6 @@ def message_editor(uid,run_action):
         if save:
             run_action(lambda:save_message(uid,title,message,enabled,
                 uploaded.getvalue() if uploaded is not None else None),'Welcome message updated.')
+
 
 
