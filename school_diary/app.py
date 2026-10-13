@@ -87,6 +87,11 @@ def login_screen():
                 st.error('Sign-in failed. Check your username and password, or wait 5 minutes if locked.')
             st.caption('Existing parents: use your account username and password. Ask the school if you do not know your username.')
             st.caption('Forgot your password? Contact the school administrator for a reset.')
+            st.caption('© 2026 Muhammad Masood Saleem. All rights reserved.')
+            st.caption(
+                '[masoodsaleem@hotmail.com](mailto:masoodsaleem@hotmail.com) · '
+                '[GitHub](https://github.com/masoodsaleem-cangel)'
+            )
         with register:
             st.write('Use the invitation code given to you by your school.')
             with st.form('parent_registration'):
