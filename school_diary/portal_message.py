@@ -36,6 +36,7 @@ def public_message():
 
 
 def save_message(uid,title,message,enabled,picture_data=None):
+    svc.clear_read_cache()
     svc.actor(uid,('admin',))
     title,message = svc.required(title,120),svc.required(message,1200)
     png=normalize_picture(picture_data) if picture_data is not None else None
@@ -91,8 +92,8 @@ def write_picture_cache(data):
             temporary.unlink(missing_ok=True)
 
 
-@st.cache_data(ttl=30,show_spinner=False)
-def uploaded_picture():
+@st.cache_data(max_entries=4,show_spinner=False)
+def uploaded_picture(revision=None):
     rows=query('SELECT data FROM portal_picture WHERE id=1')
     if rows:
         data=bytes(rows[0]['data'])
@@ -101,33 +102,54 @@ def uploaded_picture():
     return None
 
 
+@st.cache_data(max_entries=4,show_spinner=False)
+def local_picture(path,modified_ns,size):
+    return Path(path).read_bytes()
+
+
+@st.cache_data(max_entries=4,show_spinner=False)
+def display_picture(source):
+    """Small transparent PNG for the existing 170px/260px display sizes.
+
+    Keep the full-resolution w_pic.png and database original untouched.
+    """
+    with Image.open(io.BytesIO(source)) as original:
+        image=ImageOps.exif_transpose(original).convert('RGBA')
+        image.thumbnail((520,520),Image.Resampling.LANCZOS)
+        buffer=io.BytesIO()
+        image.save(buffer,format='PNG',optimize=True)
+        return buffer.getvalue()
+
+
 def picture(popup=False):
-    source=uploaded_picture()
+    source=uploaded_picture(public_message()['revision'])
     if source is None:
         path=Path(__file__).with_name('w_pic.png')
-        source=str(path) if path.exists() else None
+        if path.exists():
+            stat=path.stat()
+            source=local_picture(str(path),stat.st_mtime_ns,stat.st_size)
     if source is not None:
         key='ayesha_popup' if popup else 'ayesha_sidebar'
         height='min(35vh, 260px)' if popup else 'clamp(80px, 18vh, 170px)'
-        st.markdown(f'<style>.st-key-{key} img {{width:100%;height:{height};object-fit:contain;object-position:left center;}}'
-            f'.st-key-{key} {{max-width:{"100%" if popup else "82%"};margin-left:0;}}</style>',unsafe_allow_html=True)
+        st.html(f'<style>.st-key-{key} img {{width:100%;height:{height};object-fit:contain;object-position:left center;}}'
+            f'.st-key-{key} {{min-height:{height};max-width:{"100%" if popup else "82%"};margin-left:0;}}</style>')
         with st.container(key=key):
-            st.image(source,**stretch(st.image))
+            st.image(display_picture(source),**stretch(st.image))
     else:
         st.caption('Place w_pic.png beside app.py to display the illustration.')
 
 
 @st.dialog('\u00a0',width='small')
 def message_dialog(settings):
-    st.markdown("""<style>
+    st.html("""<style>
 [role="dialog"]:has(.welcome-bubble) {background:transparent !important;box-shadow:none !important;border:0 !important;}
 [role="dialog"]:has(.welcome-bubble) h2 {display:none;}
 .welcome-bubble {position:relative;background:#fff;color:#252033;border:2px solid #68408A;
     border-radius:24px;padding:18px 20px;margin:0 0 18px;white-space:pre-wrap;overflow-wrap:anywhere;}
 .welcome-bubble:after {content:'';position:absolute;bottom:-12px;left:35px;width:20px;height:20px;
     background:#fff;border-right:2px solid #68408A;border-bottom:2px solid #68408A;transform:rotate(45deg);}
-</style>""",unsafe_allow_html=True)
-    st.markdown('<div class="welcome-bubble">'+html.escape(settings['message'])+'</div>',unsafe_allow_html=True)
+</style>""")
+    st.html('<div class="welcome-bubble">'+html.escape(settings['message'])+'</div>')
     picture(popup=True)
     if st.button('Close message',key='close_welcome'):
         st.rerun()
@@ -136,7 +158,6 @@ def message_dialog(settings):
 def render_welcome():
     settings=public_message()
     with st.sidebar:
-        st.title('📖 School Diary')
         picture()
         st.caption('Inspired by Aisha')
         reopen=st.button('💬 School message',key='open_welcome') if settings['enabled'] and 'user_id' in st.session_state else False
@@ -160,16 +181,17 @@ def message_editor(uid,run_action):
             save=st.form_submit_button('Save welcome message',type='primary')
         with picture_col:
             with st.container(key='choose_welcome_picture'):
-                st.markdown("""<style>
+                st.html("""<style>
 .st-key-choose_welcome_picture [data-testid="stFileUploaderDropzoneInstructions"] {display:none;}
 .st-key-choose_welcome_picture [data-testid="stFileUploaderDropzone"] {padding:0;border:0;background:transparent;}
 .st-key-choose_welcome_picture [data-testid="stFileUploaderDropzone"] button {font-size:0;}
 .st-key-choose_welcome_picture [data-testid="stFileUploaderDropzone"] button:after {content:'Choose Picture';font-size:14px;}
-</style>""",unsafe_allow_html=True)
+</style>""")
                 uploaded=st.file_uploader('Choose Picture',type=['png','jpg','jpeg','webp'],
                     key='welcome_picture_upload',label_visibility='collapsed',
                     help='Choose an image, then Save welcome message. Stored as w_pic.png.')
         if save:
             run_action(lambda:save_message(uid,title,message,enabled,
                 uploaded.getvalue() if uploaded is not None else None),'Welcome message updated.')
+
 

@@ -7,6 +7,9 @@ import time
 import os
 import logging
 from functools import wraps
+from contextlib import contextmanager
+from contextvars import ContextVar
+from copy import deepcopy
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 from sqlalchemy import text
@@ -15,6 +18,38 @@ from db import query, execute, engine
 
 KINDS = ('Homework', 'Notice', 'Activity', 'Private note')
 KARACHI = ZoneInfo('Asia/Karachi')
+
+
+# Never cache permissions globally or across reruns/sessions.
+_read_cache = ContextVar('school_diary_read_cache',default=None)
+
+
+@contextmanager
+def read_scope():
+    token=_read_cache.set({})
+    try:
+        yield
+    finally:
+        _read_cache.reset(token)
+
+
+def clear_read_cache():
+    cache=_read_cache.get()
+    if cache is not None:
+        cache.clear()
+
+
+def _request_cached(function):
+    @wraps(function)
+    def wrapped(*args,**kwargs):
+        cache=_read_cache.get()
+        if cache is None:
+            return function(*args,**kwargs)
+        key=(function.__name__,args,tuple(sorted(kwargs.items())))
+        if key not in cache:
+            cache[key]=function(*args,**kwargs)
+        return deepcopy(cache[key])
+    return wrapped
 
 
 def now():
@@ -61,8 +96,12 @@ def check_password(password):
     return password
 
 
+def _actor_record(uid):
+    return query('SELECT id,username,name,role FROM users WHERE id=:id AND active=1', id=uid)
+
+
 def actor(uid, roles=('admin', 'teacher', 'parent')):
-    rows = query('SELECT id,username,name,role FROM users WHERE id=:id AND active=1', id=uid)
+    rows = _actor_record(uid)
     if not rows or rows[0]['role'] not in roles:
         raise PermissionError('You do not have access to this action.')
     return rows[0]
@@ -768,7 +807,11 @@ def _audit(uid, action):
 def _logged(function, action, returned_user=False):
     @wraps(function)
     def wrapped(*args, **kwargs):
-        result = function(*args, **kwargs)
+        clear_read_cache()  # Re-check authorization before every mutation.
+        try:
+            result = function(*args, **kwargs)
+        finally:
+            clear_read_cache()  # Read fresh permissions/data after writes or failures.
         if returned_user:
             if result is not None:
                 _audit(result['id'] if isinstance(result,dict) else result,action)
@@ -811,6 +854,13 @@ def mark_replies_viewed(uid, entry_id, student_id, reply_ids):
     insert='INSERT IGNORE' if engine.dialect.name=='mysql' else 'INSERT OR IGNORE'
     with engine.begin() as conn:
         result=conn.execute(text(insert+f""" INTO reply_views(user_id,reply_id)
-            SELECT :u,r.id FROM replies r WHERE r.entry_id=:e
+            SELECT :u,r.id FROM replies r WHERE r.entry_id=:e AND r.author_id<>:u
             AND r.id IN ({placeholders}){family}"""),params)
         return result.rowcount
+
+
+# Shared only within one explicit read_scope, including nested authorization checks.
+_actor_record = _request_cached(_actor_record)
+children = _request_cached(children)
+_class_access = _request_cached(_class_access)
+allowed_classes = _request_cached(allowed_classes)

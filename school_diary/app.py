@@ -11,7 +11,7 @@ from portal_message import render_welcome, message_editor
 from diary_calendar import stretch
 
 st.set_page_config(page_title='School Diary', page_icon='📖', layout='wide')
-st.markdown('''<style>
+st.html('''<style>
 [data-testid="stMetric"] {padding:16px;border-radius:14px;border:1px solid #8883;}
 [data-testid="stVerticalBlockBorderWrapper"] {border-radius:14px;}
 /* Keep dialogs inside small screens; long messages scroll inside the dialog. */
@@ -27,7 +27,7 @@ st.markdown('''<style>
 .st-key-feed_toolbar [data-testid="stHorizontalBlock"] {flex-wrap:nowrap;gap:8px;}
 .st-key-feed_toolbar [data-testid="stColumn"] {min-width:0 !important;}
 .st-key-feed_toolbar {max-width:170px;}
-</style>''', unsafe_allow_html=True)
+</style>''')
 
 
 def run_action(action, message='Saved successfully.', invitation=False):
@@ -106,7 +106,7 @@ def show_invitation_code():
     code = st.session_state.get('invitation_code')
     if code:
         st.success('Invitation created. Copy this code and share it privately with the intended guardian.')
-        st.markdown("<div style='color:#c62828;font-size:0.8rem;font-weight:600'>Parent's Invitation Code [Confidential]</div>",unsafe_allow_html=True)
+        st.html("<div style='color:#c62828;font-size:0.8rem;font-weight:600'>Parent's Invitation Code [Confidential]</div>")
         st.code(code, language=None)
         st.caption('Valid for 24 hours and one registration. The school does not need to choose a parent password.')
         st.download_button('Download invitation slip',
@@ -268,8 +268,8 @@ def admin_panel(uid):
             expiry = datetime.fromtimestamp(invitation['expires_at'], svc.KARACHI).strftime('%d %b %Y, %H:%M')
             status=invitation['status']
             color={'Pending':'#c62828','Used':'#16803c'}.get(status,'inherit')
-            row.markdown(f"{html.escape(invitation['guardian_name'])} · {html.escape(invitation['students'])} · "
-                         f"<span style='color:{color}'>{html.escape(status)}</span>",unsafe_allow_html=True)
+            row.html(f"{html.escape(invitation['guardian_name'])} · {html.escape(invitation['students'])} · "
+                         f"<span style='color:{color}'>{html.escape(status)}</span>")
             row.caption(f"Invitation #{invitation['id']} · Expires {expiry} (Pakistan time)")
             if invitation['status'] in ('Pending', 'Locked', 'Expired'):
                 if control.button('Revoke', key=f"revoke_{invitation['id']}"):
@@ -352,8 +352,21 @@ def reply_form(uid, eid, sid):
             run_action(lambda: svc.reply(uid, eid, sid, body), 'Reply sent.')
 
 
+def toggle_conversation(key):
+    st.session_state[key]=not st.session_state.get(key,False)
+
+
 def show_entry(uid, entry, sid=None):
     eid = entry['id']
+    opened_key=f'thread_open_{eid}_{sid}'
+    cursor_key=f'comments_cursor_{eid}_{sid}'
+    before=st.session_state.get(cursor_key)
+    conversation=None
+    if st.session_state.get(opened_key,False):
+        conversation=svc.conversation_page(uid,eid,sid,before)
+        if entry.get('unread_reply_count',0):
+            viewed=svc.mark_replies_viewed(uid,eid,sid,[c['id'] for c in conversation[0]])
+            entry=dict(entry,unread_reply_count=max(0,entry['unread_reply_count']-viewed))
     with st.container(key=f'feed_card_{eid}_{sid}'):
         st.caption(f"{entry['kind']} · {entry['subject']} · {entry['teacher_name']}")
         st.subheader(entry['title'])
@@ -364,9 +377,9 @@ def show_entry(uid, entry, sid=None):
         unread=entry.get('unread_reply_count',0)
         opened_key=f'thread_open_{eid}_{sid}'
         with st.container(key=f"reply_indicator_{'new' if unread else 'seen'}_{eid}_{sid}"):
-            if st.button(f'{count} replies',icon=':material/chat_bubble_outline:',key=f'replies_{eid}_{sid}',
-                         help=f'{unread} unseen replies' if unread else 'Show or hide replies'):
-                st.session_state[opened_key]=not st.session_state.get(opened_key,False)
+            st.button(f'{count} replies',icon=':material/chat_bubble_outline:',key=f'replies_{eid}_{sid}',
+                      help=f'{unread} unseen replies' if unread else 'Show or hide replies',
+                      on_click=toggle_conversation,args=(opened_key,))
         st.caption(f"{entry['acknowledged_families']} families acknowledged")
         if sid is not None:
             already_seen = entry['acknowledged_by_me']
@@ -377,13 +390,11 @@ def show_entry(uid, entry, sid=None):
             st.caption('Guardians of the same child share a thread. Staff can see every family.')
             cursor_key = f'comments_cursor_{eid}_{sid}'
             before = st.session_state.get(cursor_key)
-            comments, more, cursor = svc.conversation_page(uid,eid,sid,before)
+            comments, more, cursor = conversation
             for comment in comments:
                 if sid is None:
                     st.caption(f"{comment['child_name']} · {comment['student_code']}")
                 comments_view([comment])
-            if unread and svc.mark_replies_viewed(uid,eid,sid,[c['id'] for c in comments]):
-                st.rerun()
             if more and st.button('Older replies',key=f'older_{eid}_{sid}'):
                 st.session_state[cursor_key] = cursor
                 st.rerun()
@@ -493,6 +504,8 @@ def activity_panel(uid):
 
 
 def main():
+    # Establish the sidebar before remote database reads shift the main layout.
+    st.sidebar.title('📖 School Diary')
     init_db()
     render_welcome()
     if st.session_state.get('flash'):
@@ -531,10 +544,12 @@ def main():
 
 
 try:
-    main()
+    with svc.read_scope():
+        main()
 except SQLAlchemyError:
     st.error('The database is temporarily unavailable. Please refresh and try again.')
 except (ValueError, PermissionError) as exc:
     st.error(str(exc))
+
 
 
