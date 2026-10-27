@@ -20,6 +20,8 @@ A school diary that stays with you. Teachers share homework, notices and activit
 
 One login, with access based on the account. Conversations stay private to each family, while teachers can follow the replies under the same diary entry.
 
+![School Diary Preview](scr_into.png)
+
 ## Technology & architecture
 
 | Layer | Technology |
