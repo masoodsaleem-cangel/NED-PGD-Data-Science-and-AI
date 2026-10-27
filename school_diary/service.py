@@ -107,12 +107,12 @@ def actor(uid, roles=('admin', 'teacher', 'parent')):
     return rows[0]
 
 
-def login(role, identifier, password, cnic=''):
-    """All roles now sign in with username + password. CNIC is registration only."""
-    if role not in ('admin', 'teacher', 'parent') or len(password) > 256:
+def login(identifier, password):
+    """Authenticate by unique username; the database supplies the account role."""
+    if len(password) > 256:
         return None
-    candidates = query('SELECT * FROM users WHERE username=:u AND role=:r AND active=1',
-                       u=identifier.strip(), r=role)
+    candidates = query('SELECT * FROM users WHERE username=:u AND active=1',
+                       u=identifier.strip())
     if not candidates:
         return None
     user = candidates[0]
@@ -864,3 +864,4 @@ _actor_record = _request_cached(_actor_record)
 children = _request_cached(children)
 _class_access = _request_cached(_class_access)
 allowed_classes = _request_cached(allowed_classes)
+

@@ -71,14 +71,12 @@ def login_screen():
     with middle:
         signin, register = st.tabs(['Sign in', 'Register as a parent'])
         with signin:
-            labels = {'Parent': 'parent', 'Teacher': 'teacher', 'Super admin': 'admin'}
-            role_label = st.radio('Sign in as', list(labels), horizontal=True)
             with st.form('login'):
                 username = st.text_input('Username', max_chars=80)
                 password = st.text_input('Password', type='password', max_chars=256)
                 submitted = st.form_submit_button('Sign in', type='primary')
             if submitted:
-                user = svc.login(labels[role_label], username, password)
+                user = svc.login(username, password)
                 if user:
                     st.session_state.clear()
                     st.session_state.user_id = user['id']
@@ -555,6 +553,7 @@ except SQLAlchemyError:
     st.error('The database is temporarily unavailable. Please refresh and try again.')
 except (ValueError, PermissionError) as exc:
     st.error(str(exc))
+
 
 
 
