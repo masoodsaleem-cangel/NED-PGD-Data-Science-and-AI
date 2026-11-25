@@ -150,3 +150,14 @@ SDK builds link all import libraries found in the SDK library directory and copy
 Verified on Windows x64 with CMake, Ninja and MinGW GCC 15.1. Qwen ran with Vulkan GPU offload on Intel UHD Graphics 620. Ornith was checked in a short CPU run with 4,096 output dimensions, 32 layers and 16 heads. All three scenes rendered on OpenGL 4.5.
 
 Third-party source and runtime notices are in `vendor` and `bin`. The build uses GLFW 3.4, Dear ImGui 1.91.9b, generated GLAD 4.5 compatibility bindings and nlohmann/json 3.11.3. [llama.cpp C API](https://github.com/ggml-org/llama.cpp/blob/427291b5b/include/llama.h) · [Attention graph](https://github.com/ggml-org/llama.cpp/blob/427291b5b/src/llama-graph.cpp) · [GLFW](https://github.com/glfw/glfw/tree/3.4) · [Dear ImGui](https://github.com/ocornut/imgui/tree/v1.91.9b) · [GLAD bindings](https://github.com/JoeyDeVries/LearnOpenGL/tree/master/includes/glad) · [nlohmann/json](https://github.com/nlohmann/json/tree/v3.11.3)
+
+Rights and licence
+Copyright © 2026 Muhammad Masood Saleem. All rights reserved.
+
+TokenScope — its source code, viewer, capture worker and bundled example traces — is developed and distributed by Muhammad Masood Saleem. It is provided for personal and evaluation use. Copying, redistribution of the compiled binaries or source in whole or in part, or use in a commercial product requires the prior written permission of the author, except where a separate licence file in the project root states otherwise. If no licence file is present, treat the project as all rights reserved. The software is provided “as is”, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and non-infringement. In no event shall the author be liable for any claim, damages or other liability arising from, out of or in connection with the software or its use.
+
+Third-party components keep their own licences and are not covered by the statement above. The build uses GLFW 3.4 (zlib/libpng licence), Dear ImGui 1.91.9b (MIT), generated GLAD bindings and nlohmann/json 3.11.3 (MIT), and links against the llama.cpp C API (MIT). Their notices are in vendor and bin. Model weights — for example the Qwen GGUF referenced in this README — are distributed by their respective authors under their own terms and are not part of this project.
+
+Developed by
+Muhammad Masood Saleem
+Contact: masoodsaleem@hotmail.com
