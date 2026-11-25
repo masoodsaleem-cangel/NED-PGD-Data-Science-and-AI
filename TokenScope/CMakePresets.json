@@ -1,0 +1,11 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {"name":"ninja","displayName":"Windows x64 Ninja Release","generator":"Ninja","binaryDir":"${sourceDir}/build/ninja","cacheVariables":{"CMAKE_BUILD_TYPE":"Release"}},
+    {"name":"msvc","displayName":"Visual Studio 2022 x64","generator":"Visual Studio 17 2022","architecture":"x64","binaryDir":"${sourceDir}/build/msvc"}
+  ],
+  "buildPresets": [
+    {"name":"ninja","configurePreset":"ninja"},
+    {"name":"msvc","configurePreset":"msvc","configuration":"Release"}
+  ]
+}
