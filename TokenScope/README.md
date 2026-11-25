@@ -84,3 +84,69 @@ From PowerShell in the extracted folder, run
 
 ```powershell
 .\bin\Capture.exe --model "C:\qwen2.5-0.5b-instruct-q4_k_m.gguf" --prompt "The capital of Pakistan is" --tokens 0
+```
+
+### Record a trace with full vectors
+
+```powershell
+.\bin\Capture.exe --model "C:\qwen2.5-0.5b-instruct-q4_k_m.gguf" --prompt "The sky above Karachi was" --tokens 20 --temperature 0.7 --seed 42 --layer 10 --raw --out karachi.jsonl
+.\bin\TokenScope.exe --trace karachi.jsonl
+```
+
+Choose a fresh output filename for each CLI capture. Both the viewer and the worker default to raw text. Use `--chat` for one chat turn. On a supported model add `--model-thinking` or `--direct-answer` to supply the corresponding assistant prefix. Use `--all-layers` for a short full inspection or `--no-attention --no-paths` to capture final vectors and logits with less instrumentation. The worker's `--raw` option records full hidden vectors and is independent of input format.
+
+### Check or plot PCA in Python
+
+The viewer and capture worker run independently of Python. The plotting tool uses NumPy and Matplotlib. With those installed, run
+
+```powershell
+python tools\plot_trace.py examples\two-banks.jsonl --verify --output cosmos.png
+```
+
+The tool recomputes PCA with singular value decomposition and checks attention row sums and shapes. Use `--check-only` for numerical verification. The independent projection matched the included native recording to within **1.5 × 10⁻⁷** on all 43 positions.
+
+## Build in Antigravity
+
+Open the folder containing `CMakeLists.txt`. In CMake Tools, select the **Windows x64 Ninja Release** preset and your x64 compiler kit, then build. A second preset targets Visual Studio 2022 x64. The GLFW, Dear ImGui, GLAD and JSON sources are bundled, so the build can configure offline.
+
+```powershell
+cmake --preset ninja
+cmake --build --preset ninja
+.\build\ninja\bin\TokenScope.exe
+```
+
+CMake searches `C:\Program Files\llama.cpp` and the WinGet package directory. Point `LLAMA_ROOT` at another matching SDK when needed. For example
+
+```powershell
+cmake --preset ninja "-DLLAMA_ROOT=C:/Program Files/llama.cpp"
+```
+
+SDK builds link all import libraries found in the SDK library directory and copy all DLLs from its binary directory beside the capture executable. Current llama.cpp C APIs are required. For a runtime-only installation the included headers match **b10816 / 427291b5b**. For another runtime version, supply its matching headers and libraries. To compile just the viewer, configure with `-DTOKENSCOPE_CAPTURE=OFF`.
+
+2. Visual Studio 2022 (open the folder)
+Install Visual Studio 2022 with the Desktop development with C++ workload. Launch VS → Continue without code → File → Open → Folder… and pick the folder that contains CMakeLists.txt. VS uses its built-in CMake support (no separate CMake install needed) and reads the shipped CMakePresets.json automatically. Choose the Windows x64 Ninja Release preset — or the Visual Studio 2022 x64 preset — from the configuration dropdown in the toolbar, wait for CMake generation finished, then Build → Build All (Ctrl+Shift+B). Run TokenScope.exe from the output path shown in the status bar (for the Ninja preset that is build\ninja\bin\TokenScope.exe).
+
+3. CMake GUI (configure + generate)
+Install CMake from cmake.org or winget install Kitware.CMake. Open cmake-gui and set Where is the source code to the folder containing CMakeLists.txt and Where to build the binaries to a fresh build directory. Press Configure, pick Visual Studio 17 2022 with x64 (or Ninja if you have it on PATH), then press Generate. Click Open Project to launch the generated solution, set the configuration to Release and build. The binary ends up in build\Release\TokenScope.exe for the VS generator, or build\bin\TokenScope.exe for Ninja. With the Ninja generator you can also skip the GUI after generation and run cmake --build build from a Developer PowerShell.
+
+CMake searches C:\Program Files\llama.cpp and the WinGet package directory. Point LLAMA_ROOT at another matching SDK when needed. For example
+
+cmake --preset ninja "-DLLAMA_ROOT=C:/Program Files/llama.cpp"
+
+SDK builds link all import libraries found in the SDK library directory and copy all DLLs from its binary directory beside the capture executable. Current llama.cpp C APIs are required. For a runtime-only installation the included headers match b10816 / 427291b5b. For another runtime version, supply its matching headers and libraries. To compile just the viewer, configure with -DTOKENSCOPE_CAPTURE=OFF.
+
+### Source layout
+
+| File | Responsibility |
+| --- | --- |
+| `src/capture.cpp` | GGUF loading, token-by-token decode, tensor probes and trace records |
+| `src/sampling.hpp` | Full-vocabulary probabilities, entropy and seeded draws |
+| `src/pca.hpp` | Fixed PCA basis and projection |
+| `src/session.cpp` | Background capture process, live trace reader and replay |
+| `src/renderer.cpp` | 3D geometry, GPU instancing, ribbons and compute particles |
+| `src/answer.cpp` | On-demand answer trail, context links and displayed reply text |
+| `src/viewer.cpp` | Window, inspection controls, camera and playback |
+
+Verified on Windows x64 with CMake, Ninja and MinGW GCC 15.1. Qwen ran with Vulkan GPU offload on Intel UHD Graphics 620. Ornith was checked in a short CPU run with 4,096 output dimensions, 32 layers and 16 heads. All three scenes rendered on OpenGL 4.5.
+
+Third-party source and runtime notices are in `vendor` and `bin`. The build uses GLFW 3.4, Dear ImGui 1.91.9b, generated GLAD 4.5 compatibility bindings and nlohmann/json 3.11.3. [llama.cpp C API](https://github.com/ggml-org/llama.cpp/blob/427291b5b/include/llama.h) · [Attention graph](https://github.com/ggml-org/llama.cpp/blob/427291b5b/src/llama-graph.cpp) · [GLFW](https://github.com/glfw/glfw/tree/3.4) · [Dear ImGui](https://github.com/ocornut/imgui/tree/v1.91.9b) · [GLAD bindings](https://github.com/JoeyDeVries/LearnOpenGL/tree/master/includes/glad) · [nlohmann/json](https://github.com/nlohmann/json/tree/v3.11.3)
